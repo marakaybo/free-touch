@@ -1,6 +1,6 @@
 [package]
 name = "free-touch"
-version = "0.1.0"
+version = "0.1.1"
 description = "Free Touch — бесплатный пульт для ПК с телефона"
 authors = ["marakaybo"]
 license = "MIT"
