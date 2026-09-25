@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Ph } from '../../shared/render';
-import { api } from '../api';
+import { api, openUrl } from '../api';
+import { REPO_URL } from './SettingsModal';
 import { useStore } from '../store';
 import { Modal, Select } from './ui';
 
@@ -36,8 +37,12 @@ export function PairModal({ onClose }: { onClose: () => void }) {
           <ol className="steps">
             <li><b>Подключите телефон к той же Wi-Fi,</b> что и компьютер.</li>
             <li><b>Наведите камеру на QR-код</b> и откройте ссылку. Пульт откроется в браузере, ничего ставить не нужно.</li>
-            <li>В меню браузера выберите <b>«Добавить на главный экран»</b>. Пульт станет отдельным значком и откроется на весь экран.</li>
+            <li>В меню браузера выберите <b>«Добавить на главный экран»</b>. Пульт станет отдельным значком.</li>
           </ol>
+          <p className="pair-apk">
+            На Android удобнее приложение: весь экран, экран не гаснет, свой сканер QR.{' '}
+            <button className="link" onClick={() => openUrl(`${REPO_URL}/releases/latest`)}>Скачать Free Touch для Android</button>
+          </p>
           <div className="pair-link">
             <code>{url || '—'}</code>
             <button className="icon-btn" disabled={!url} onClick={() => { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); }} title="Скопировать">

@@ -335,3 +335,4 @@ textarea.inp { height: auto; padding: 8px 10px; resize: vertical; line-height: 1
 .upd-bar span { display: block; height: 100%; background: var(--acc); transition: width .2s; }
 .spin { animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg) } }
+.pair-apk { margin: 0; color: var(--text-2); line-height: 1.5; }

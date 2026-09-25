@@ -83,3 +83,44 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 @keyframes pn-hold { to { background-size: 100% 100% } }
 /* Пульт без связи — клавиши гаснут. */
 .pn-root.is-offline .pn-grid { filter: saturate(0) brightness(.6); }
+
+/* ---------- приложение для Android ---------- */
+.mono { font-family: 'IBM Plex Mono', monospace; }
+.pn-root { padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left); }
+.pn-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 44px; padding: 0 18px; border-radius: 10px; width: 100%;
+  background: #1F2229; color: #E8EAF0; font-weight: 500; font-size: 15px;
+}
+.pn-btn:active { background: #2C303A; }
+.pn-btn.primary { background: #3D7BFF; color: #fff; box-shadow: inset 0 1px 0 rgba(255,255,255,.2), inset 0 -3px 0 rgba(0,0,0,.2); }
+.pn-btn.primary:active { background: #2F66DB; }
+.pn-btn.ghost { background: transparent; color: #969BA8; }
+.pn-btn.big { height: 52px; max-width: 340px; font-size: 16px; }
+.pn-link { color: #7FA6FF; font-size: 14px; text-decoration: underline; text-underline-offset: 3px; margin-top: 6px; }
+.pn-ver { color: #5F6472; font-size: 12px; margin-top: 10px; }
+.pn-fs { position: relative; }
+.pn-upd-dot { position: absolute; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: #3D7BFF; }
+.pn-sheet-bg { position: fixed; inset: 0; z-index: 30; background: rgba(5,6,8,.6); display: flex; align-items: flex-end; justify-content: center; animation: pn-fade .15s; }
+@keyframes pn-fade { from { opacity: 0 } }
+.pn-sheet {
+  width: 100%; max-width: 440px; background: #14161B; border-radius: 16px 16px 0 0;
+  padding: 18px 16px calc(16px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 8px;
+  animation: pn-up .2s cubic-bezier(.3,.7,.4,1);
+}
+@keyframes pn-up { from { transform: translateY(40px); opacity: 0 } }
+.pn-sheet-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 4px; font-size: 14px; color: #969BA8; }
+.pn-sheet-row b { color: #E8EAF0; font-weight: 500; font-size: 13px; }
+
+/* свой сканер QR */
+.qr-cam { position: fixed; inset: 0; z-index: 40; background: #000; }
+.qr-cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.qr-frame {
+  position: absolute; left: 50%; top: 45%; width: min(64vw, 64vh); aspect-ratio: 1; transform: translate(-50%, -50%);
+  border-radius: 18px; box-shadow: 0 0 0 100vmax rgba(0,0,0,.5); outline: 3px solid #3D7BFF; outline-offset: -3px;
+}
+.qr-cam-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; color: #E8EAF0; font-size: 15px;
+}
+.qr-cam-bar .pn-btn { max-width: 340px; }

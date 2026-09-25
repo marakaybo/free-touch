@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import NoSleep from 'nosleep.js';
 import { normalizeProfile } from '../shared/defaults';
+import { QrCamera } from './QrCamera';
+import { APP_VERSION, checkApkUpdate, downloadApk, haptic, isNative, keepAwake as nativeKeepAwake, onBackButton, scanQr } from './native';
 import { ButtonFace, Ph, SliderFace, cellStyle, fillCss, sliderStateKey, usesClock } from '../shared/render';
 import type { Button, Page, Profile, States } from '../shared/types';
 
@@ -15,7 +17,7 @@ const store = {
 };
 
 /** Страница открыта с самого ПК (браузер) или внутри отдельного приложения. */
-const servedByPc = location.protocol.startsWith('http') && !/tauri\.localhost|^localhost:5191$/.test(location.host);
+const servedByPc = !isNative && location.protocol.startsWith('http') && !/tauri\.localhost|^localhost:5191$/.test(location.host);
 
 interface Target { host: string; token: string }
 
@@ -55,7 +57,10 @@ function deviceName(): string {
   return m ? `${m[1]}` : os;
 }
 
-const vibrate = (ms: number | number[]) => { try { navigator.vibrate?.(ms); } catch { /* нет вибро */ } };
+const vibrate = (ms: number | number[]) => {
+  if (isNative) { haptic(Array.isArray(ms) ? 'long' : ms > 10 ? 'tap' : 'tick'); return; }
+  try { navigator.vibrate?.(ms); } catch { /* нет вибро */ }
+};
 
 // ---------- приложение ----------
 
@@ -67,6 +72,7 @@ export function App() {
   const [pcName, setPcName] = useState('');
   const [pageId, setPageId] = useState<string>(() => store.get('ft.page') || '');
   const [toast, setToast] = useState<string | null>(null);
+  const [menu, setMenu] = useState(false);
   const historyRef = useRef<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const profileRef = useRef<Profile | null>(null);
@@ -99,6 +105,10 @@ export function App() {
   // Экран не гаснет, пока открыт пульт. Браузер разрешает это только после касания.
   const keepAwake = profile?.keepAwake ?? true;
   useEffect(() => {
+    if (isNative) {
+      nativeKeepAwake(keepAwake);
+      return () => { nativeKeepAwake(false); };
+    }
     const ns = new NoSleep();
     if (!keepAwake) return;
     const on = () => { if (!ns.isEnabled) ns.enable().catch(() => {}); };
@@ -184,6 +194,32 @@ export function App() {
     setConn('connecting');
   };
 
+  // Приложение: отключиться от этого ПК и подключить другой.
+  const forget = () => {
+    store.del('ft.target');
+    setTarget(null);
+    setProfile(null);
+    setConn('setup');
+  };
+
+  // Кнопка «Назад» Android листает страницы пульта назад.
+  const menuRef = useRef(false);
+  menuRef.current = menu;
+  useEffect(() => {
+    let off: (() => void) | undefined;
+    onBackButton(() => {
+      if (menuRef.current) { setMenu(false); return true; }
+      if (historyRef.current.length === 0) return false;
+      goto('@back');
+      return true;
+    }).then((f) => { off = f; });
+    return () => off?.();
+  }, [goto]);
+
+  // Новая версия приложения на GitHub.
+  const [apkUpdate, setApkUpdate] = useState<string | null>(null);
+  useEffect(() => { checkApkUpdate().then(setApkUpdate); }, []);
+
   if (!target || conn === 'setup') return <Setup onConnect={connect} />;
   if (conn === 'unauthorized') {
     return (
@@ -212,12 +248,28 @@ export function App() {
         online={conn === 'online'}
         pcName={pcName}
         onPage={(id) => goto(id)}
+        onMenu={isNative ? () => setMenu(true) : undefined}
+        update={apkUpdate}
       />
       {conn !== 'online' && (
         <div className="pn-overlay">
           <div className="pn-spinner" />
           <div>{conn === 'connecting' ? 'Подключаюсь к ПК…' : 'Нет связи с ПК. Переподключаюсь…'}</div>
           <small>Проверьте, что Free Touch запущен и телефон в той же сети Wi-Fi</small>
+          {isNative && <button className="pn-link" onClick={forget}>Подключить другой ПК</button>}
+        </div>
+      )}
+      {menu && (
+        <div className="pn-sheet-bg" onClick={() => setMenu(false)}>
+          <div className="pn-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="pn-sheet-row"><span>Компьютер</span><b className="mono">{pcName || target.host}</b></div>
+            <div className="pn-sheet-row"><span>Версия приложения</span><b className="mono">{APP_VERSION}</b></div>
+            {apkUpdate && (
+              <button className="pn-btn primary" onClick={downloadApk}>Скачать версию {apkUpdate}</button>
+            )}
+            <button className="pn-btn" onClick={() => { setMenu(false); forget(); }}>Подключить другой ПК</button>
+            <button className="pn-btn ghost" onClick={() => setMenu(false)}>Закрыть</button>
+          </div>
         </div>
       )}
       {toast && <div className="pn-toast">{toast}</div>}
@@ -418,8 +470,9 @@ function SliderCell({ b, page, states, send }: { b: Button; page: Page; states: 
 
 // ---------- нижняя панель ----------
 
-function BottomBar({ profile, pageId, online, pcName, onPage }: {
+function BottomBar({ profile, pageId, online, pcName, onPage, onMenu, update }: {
   profile: Profile | null; pageId?: string; online: boolean; pcName: string; onPage: (id: string) => void;
+  onMenu?: () => void; update?: string | null;
 }) {
   const [fs, setFs] = useState(!!document.fullscreenElement);
   useEffect(() => {
@@ -443,9 +496,16 @@ function BottomBar({ profile, pageId, online, pcName, onPage }: {
           </button>
         ))}
       </div>
-      <button className="pn-fs" onClick={toggleFs} aria-label="Во весь экран">
-        <Ph name={fs ? 'corners-in' : 'corners-out'} size={18} />
-      </button>
+      {onMenu ? (
+        <button className="pn-fs" onClick={onMenu} aria-label="Меню">
+          {update && <span className="pn-upd-dot" />}
+          <Ph name="dots-three-vertical" size={20} />
+        </button>
+      ) : (
+        <button className="pn-fs" onClick={toggleFs} aria-label="Во весь экран">
+          <Ph name={fs ? 'corners-in' : 'corners-out'} size={18} />
+        </button>
+      )}
     </div>
   );
 }
@@ -455,8 +515,9 @@ function BottomBar({ profile, pageId, online, pcName, onPage }: {
 function Setup({ onConnect, error }: { onConnect: (t: Target) => void; error?: string }) {
   const [link, setLink] = useState('');
   const [err, setErr] = useState(error ?? '');
-  const submit = () => {
-    const t = parsePairLink(link);
+  const [camera, setCamera] = useState(false);
+  const submit = (text: string) => {
+    const t = parsePairLink(text);
     if (!t) { setErr('Не похоже на ссылку подключения. Скопируйте её в программе на ПК.'); return; }
     onConnect(t);
   };
@@ -464,14 +525,36 @@ function Setup({ onConnect, error }: { onConnect: (t: Target) => void; error?: s
     <div className="pn-setup">
       <img src="./icon-192.png" alt="" width="72" height="72" />
       <h1>Free Touch</h1>
-      <p>Откройте Free Touch на компьютере, нажмите «Подключить телефон» и отсканируйте QR-код камерой телефона.</p>
+      {isNative ? (
+        <>
+          <p>Откройте Free Touch на компьютере, нажмите «Подключить телефон» и отсканируйте QR-код.</p>
+          <button
+            className="pn-btn primary big"
+            onClick={async () => {
+              setErr('');
+              const r = await scanQr();
+              if (r.needCamera) setCamera(true);
+              else if (r.text) submit(r.text);
+            }}
+          ><Ph name="qr-code" size={20} /> Сканировать QR-код</button>
+          {camera && (
+            <QrCamera
+              onClose={() => setCamera(false)}
+              onResult={(text) => { setCamera(false); submit(text); }}
+            />
+          )}
+        </>
+      ) : (
+        <p>Откройте Free Touch на компьютере, нажмите «Подключить телефон» и отсканируйте QR-код камерой телефона.</p>
+      )}
       {!servedByPc && (
         <div className="pn-form">
           <input value={link} onChange={(e) => setLink(e.target.value)} placeholder="или вставьте ссылку http://192.168…" inputMode="url" />
-          <button onClick={submit}>Подключиться</button>
+          <button onClick={() => submit(link)}>Подключиться</button>
         </div>
       )}
       {err && <div className="pn-err">{err}</div>}
+      {isNative && <small className="pn-ver mono">версия {APP_VERSION}</small>}
     </div>
   );
 }

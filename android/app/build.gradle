@@ -1,0 +1,85 @@
+apply plugin: 'com.android.application'
+
+// Версия берётся из package.json — её меняет npm run release.
+def pkgVersion = new groovy.json.JsonSlurper().parse(file('../../package.json')).version
+def vParts = pkgVersion.tokenize('.').collect { it as int }
+
+// Ключ подписи лежит вне репозитория: ~/.android-tools/keystore.properties
+// (или путь в FT_KEYSTORE_PROPS — так делает сборка на GitHub).
+def ksProps = new Properties()
+def ksFile = file(System.getenv('FT_KEYSTORE_PROPS') ?: "${System.getProperty('user.home')}/.android-tools/keystore.properties")
+if (ksFile.exists()) { ksFile.withInputStream { ksProps.load(it) } }
+
+android {
+    namespace = "io.github.marakaybo.freetouch.remote"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "io.github.marakaybo.freetouch.remote"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode vParts[0] * 10000 + vParts[1] * 100 + vParts[2]
+        versionName pkgVersion
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~:!mlkit_barcode_models'
+        }
+    }
+    signingConfigs {
+        release {
+            if (ksProps['storeFile']) {
+                storeFile file(ksProps['storeFile'])
+                storePassword ksProps['storePassword']
+                keyAlias ksProps['keyAlias']
+                keyPassword ksProps['keyPassword']
+            }
+        }
+    }
+    // Используем только сканер QR из Google Play — встроенная модель ML Kit
+    // (libbarhopper, ~20 МБ на четыре архитектуры) не нужна.
+    packagingOptions {
+        jniLibs { excludes += ['**/libbarhopper_v3.so'] }
+        resources { excludes += ['assets/mlkit_barcode_models/**'] }
+    }
+    buildTypes {
+        release {
+            if (ksProps['storeFile']) { signingConfig signingConfigs.release }
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+}
+
+android.applicationVariants.all { variant ->
+    variant.outputs.all { outputFileName = variant.buildType.name == 'release' ? 'Free-Touch-Android.apk' : 'Free-Touch-Android-debug.apk' }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

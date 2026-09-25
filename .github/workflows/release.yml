@@ -45,3 +45,32 @@ jobs:
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
+
+  # Приложение для Android. Собирается после Windows и докладывается в тот же релиз.
+  android:
+    needs: windows
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - name: Ключ подписи APK
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          printf "storeFile=%s\nstorePassword=%s\nkeyAlias=freetouch\nkeyPassword=%s\n" "$RUNNER_TEMP/release.jks" "$KEYSTORE_PASSWORD" "$KEYSTORE_PASSWORD" > "$RUNNER_TEMP/keystore.properties"
+          echo "FT_KEYSTORE_PROPS=$RUNNER_TEMP/keystore.properties" >> "$GITHUB_ENV"
+      - run: npm run android
+      - name: Выложить APK в релиз
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" dist-android/Free-Touch-Android.apk --clobber
