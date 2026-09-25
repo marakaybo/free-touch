@@ -1,0 +1,80 @@
+/* Кнопки пульта. Размеры в cqmin — доли от ячейки, одинаково на любом экране. */
+.ft-cell {
+  container-type: size;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.ft-face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5cqmin;
+  padding: 9cqmin 7cqmin;
+  box-sizing: border-box;
+  transition: transform .14s cubic-bezier(.3,.7,.4,1), filter .14s, box-shadow .2s, background .25s;
+  isolation: isolate;
+}
+.ft-face.ft-lp-bottom { justify-content: space-between; }
+.ft-face.ft-lp-top { justify-content: space-between; }
+.ft-icon-wrap { flex: 1; display: grid; place-items: center; min-height: 0; }
+.ft-lp-center .ft-icon-wrap { flex: none; }
+.ft-spacer { flex: 1; }
+.ft-label {
+  line-height: 1.12;
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+  letter-spacing: -0.01em;
+}
+.ft-face.is-pressed.ft-press-scale { transform: scale(.92); filter: brightness(1.12); }
+.ft-face.is-pressed.ft-press-pop { transform: scale(1.06); filter: brightness(1.2); }
+.ft-face.is-pressed.ft-press-ripple { filter: brightness(1.1); }
+.ft-face.is-pressed.ft-press-none { filter: brightness(1.15); }
+.ft-ripple {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 150cqmax; height: 150cqmax;
+  margin: -75cqmax 0 0 -75cqmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,255,255,.45) 0, rgba(255,255,255,0) 60%);
+  animation: ft-ripple .55s ease-out forwards;
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes ft-ripple { from { transform: scale(0); opacity: 1 } to { transform: scale(1); opacity: 0 } }
+.ft-dot {
+  position: absolute;
+  top: 9cqmin; right: 9cqmin;
+  width: 9cqmin; height: 9cqmin;
+  border-radius: 50%;
+  background: #FF4D5E;
+  box-shadow: 0 0 0 2.4cqmin rgba(255,77,94,.25);
+  animation: ft-dot 1.6s ease-in-out infinite;
+}
+@keyframes ft-dot { 50% { box-shadow: 0 0 0 4cqmin rgba(255,77,94,0) } }
+
+.ft-slider { padding: 0; }
+.ft-slider-fill { position: absolute; transition: height .08s linear, width .08s linear; z-index: -1; }
+.ft-slider-info {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  padding: 10cqmin 4cqmin; gap: 3cqmin; box-sizing: border-box; pointer-events: none;
+}
+.ft-slider.is-horizontal .ft-slider-info { flex-direction: row; justify-content: flex-start; padding: 0 8cqh; gap: 6cqh; }
+.ft-slider-value { font-weight: 700; font-size: 26cqw; font-variant-numeric: tabular-nums; line-height: 1; }
+.ft-slider.is-horizontal .ft-slider-value { font-size: 38cqh; }
+.ft-slider-label { font-size: 13cqw; opacity: .8; text-align: center; font-weight: 600; }
+.ft-slider.is-horizontal .ft-slider-label { font-size: 22cqh; }
