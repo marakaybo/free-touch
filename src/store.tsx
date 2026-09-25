@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { defaultProfile } from '../shared/defaults';
+import { normalizeProfile } from '../shared/defaults';
 import type { Button, ClientInfo, ObsMeta, Page, Profile, ServerStatus, Settings, States } from '../shared/types';
 import { api, on, type Bootstrap, type NetIp } from './api';
 
@@ -55,13 +55,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [, bump] = useState(0);
   const saveTimer = useRef<number | undefined>(undefined);
 
+  // Текущий профиль в ref: история отмены и автосохранение не зависят от того,
+  // сколько раз React вызовет функции обновления состояния.
+  const profileRef = useRef<Profile | null>(null);
+
   useEffect(() => {
     api.bootstrap().then((b) => {
-      let p = b.profile;
-      if (!p || !Array.isArray(p.pages) || p.pages.length === 0) {
-        p = defaultProfile();
-        api.saveProfile(p);
-      }
+      const p = normalizeProfile(b.profile);
+      if (JSON.stringify(p) !== JSON.stringify(b.profile)) api.saveProfile(p);
+      profileRef.current = p;
       setBoot(b);
       setProfile(p);
       setSettings(b.settings);
@@ -70,7 +72,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setClients(b.clients);
       setServer(b.server);
       setIps(b.ips);
-      setPageId(p.home || p.pages[0].id);
+      setPageId(p.home);
     });
     const offs = [
       on<{ key: string; value: unknown }>('ft-state', ({ key, value }) =>
@@ -86,48 +88,60 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const commit = useCallback((next: Profile) => {
+    profileRef.current = next;
     setProfile(next);
     clearTimeout(saveTimer.current);
     saveTimer.current = window.setTimeout(() => api.saveProfile(next), 250);
+    bump((x) => x + 1);
+  }, []);
+
+  // Не теряем последнюю правку, если окно закрывают сразу после неё.
+  useEffect(() => {
+    const flush = () => {
+      if (saveTimer.current !== undefined && profileRef.current) {
+        clearTimeout(saveTimer.current);
+        saveTimer.current = undefined;
+        api.saveProfile(profileRef.current);
+      }
+    };
+    window.addEventListener('blur', flush);
+    window.addEventListener('beforeunload', flush);
+    return () => { window.removeEventListener('blur', flush); window.removeEventListener('beforeunload', flush); };
   }, []);
 
   const update = useCallback((fn: (p: Profile) => void, merge?: string) => {
-    setProfile((cur) => {
-      if (!cur) return cur;
-      const next = structuredClone(cur);
-      fn(next);
-      const last = past.current[past.current.length - 1];
-      const now = Date.now();
-      // Серию мелких правок одного поля (ползунок, ввод текста) склеиваем в один шаг отмены.
-      if (!(merge && last && last.key === merge && now - last.t < 1500)) {
-        past.current.push({ p: cur, key: merge, t: now });
-        if (past.current.length > 150) past.current.shift();
-      } else {
-        last.t = now;
-      }
-      future.current = [];
-      clearTimeout(saveTimer.current);
-      saveTimer.current = window.setTimeout(() => api.saveProfile(next), 250);
-      return next;
-    });
-    bump((x) => x + 1);
-  }, []);
+    const cur = profileRef.current;
+    if (!cur) return;
+    const next = structuredClone(cur);
+    fn(next);
+    const last = past.current[past.current.length - 1];
+    const now = Date.now();
+    // Серию мелких правок одного поля (ползунок, ввод текста) склеиваем в один шаг отмены.
+    if (merge && last && last.key === merge && now - last.t < 1500) {
+      last.t = now;
+    } else {
+      past.current.push({ p: cur, key: merge, t: now });
+      if (past.current.length > 150) past.current.shift();
+    }
+    future.current = [];
+    commit(next);
+  }, [commit]);
 
   const undo = useCallback(() => {
     const prev = past.current.pop();
-    if (!prev || !profile) return;
-    future.current.push(profile);
+    const cur = profileRef.current;
+    if (!prev || !cur) return;
+    future.current.push(cur);
     commit(prev.p);
-    bump((x) => x + 1);
-  }, [profile, commit]);
+  }, [commit]);
 
   const redo = useCallback(() => {
     const next = future.current.pop();
-    if (!next || !profile) return;
-    past.current.push({ p: profile, t: 0 });
+    const cur = profileRef.current;
+    if (!next || !cur) return;
+    past.current.push({ p: cur, t: 0 });
     commit(next);
-    bump((x) => x + 1);
-  }, [profile, commit]);
+  }, [commit]);
 
   const page = useMemo(() => {
     if (!profile) return null;
@@ -150,9 +164,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }, merge ? `${id}:${merge}` : undefined);
   }, [update]);
 
-  const replaceProfile = useCallback((p: Profile) => {
+  const replaceProfile = useCallback((raw: Profile) => {
+    const p = normalizeProfile(raw);
     update((cur) => { Object.assign(cur, p); });
-    setPageId(p.home || p.pages[0]?.id);
+    setPageId(p.home);
     select(null);
   }, [update]);
 

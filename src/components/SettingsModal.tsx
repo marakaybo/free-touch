@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Download, Search, Upload } from 'lucide-react';
+import { Download, RefreshCw, Search, Upload } from 'lucide-react';
 import { IconView } from '../../shared/render';
 import type { Profile, Settings } from '../../shared/types';
 import { api, autostart, openUrl, pickFile, saveFile } from '../api';
@@ -8,11 +8,15 @@ import { Field, Modal, Num, Section, Text, Toggle } from './ui';
 
 export const REPO_URL = 'https://github.com/marakaybo/free-touch';
 
-export function SettingsModal({ onClose }: { onClose: () => void }) {
+export function SettingsModal({ onClose, checkUpdates }: {
+  onClose: () => void;
+  checkUpdates: () => Promise<{ update: unknown; error: string | null }>;
+}) {
   const { settings, saveSettings, obs, profile, replaceProfile, version } = useStore();
   const [s, setS] = useState<Settings>(settings);
   const [auto, setAuto] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
   const dirty = JSON.stringify(s) !== JSON.stringify(settings);
 
   useEffect(() => { autostart().then(setAuto); }, []);
@@ -79,6 +83,20 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             <button className="btn" onClick={importProfile}><Upload size={14} /> Загрузить из файла</button>
           </div>
           <span className="fld-hint">Файлом можно поделиться — картинки и значки лежат внутри.</span>
+        </Section>
+
+        <Section title="Обновления">
+          <Toggle checked={s.autoUpdate !== false} onChange={(autoUpdate) => setS({ ...s, autoUpdate })} label="Проверять обновления при запуске" />
+          <button
+            className="btn"
+            disabled={checking}
+            onClick={async () => {
+              setChecking(true);
+              const r = await checkUpdates();
+              setChecking(false);
+              if (!r.update) setMsg(r.error ?? `У вас последняя версия — ${version}`);
+            }}
+          ><RefreshCw size={14} className={checking ? 'spin' : ''} /> {checking ? 'Проверяю…' : 'Проверить сейчас'}</button>
         </Section>
 
         <Section title="О программе">

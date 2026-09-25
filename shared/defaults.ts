@@ -1,4 +1,4 @@
-import type { Action, ActiveRule, Button, ButtonStyle, Page, Profile } from './types';
+import type { Action, ActiveRule, Button, ButtonStyle, Fill, Page, Profile } from './types';
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -60,6 +60,7 @@ export const newButton = (x: number, y: number, patch: Partial<Button> = {}): Bu
   type: 'button',
   style: baseStyle(),
   actions: [],
+  longActions: [],
   active: null,
   slider: null,
   ...patch,
@@ -190,5 +191,83 @@ export function defaultProfile(): Profile {
     }),
   ];
 
-  return { version: 1, name: 'Мой пульт', accent: ACCENT, pageDots: true, home: stream.id, pages: [stream, media] };
+  return { version: 1, name: 'Мой пульт', accent: ACCENT, pageDots: true, keepAwake: true, home: stream.id, pages: [stream, media] };
+}
+
+// ---------- проверка профиля ----------
+// Профиль мог прийти из файла, от старой версии программы или быть отредактирован руками.
+// Всё, чего не хватает, дозаполняем, мусор отбрасываем — редактор и пульт не должны падать.
+
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const int = (v: any, min: number, max: number, def: number) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+};
+
+const ACTION_TYPES: Action['type'][] = ['hotkey', 'text', 'open', 'command', 'media', 'volume', 'obs', 'page', 'delay'];
+
+function normActions(list: any): Action[] {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((a) => a && ACTION_TYPES.includes(a.type))
+    .map((a) => ({ ...defaultAction(a.type), ...a }) as Action);
+}
+
+function normFill(f: any, def: Fill): Fill {
+  if (f?.type === 'solid' && typeof f.color === 'string') return f;
+  if (f?.type === 'gradient' && typeof f.from === 'string' && typeof f.to === 'string') return { ...f, angle: Number(f.angle) || 0 };
+  if (f?.type === 'image' && typeof f.src === 'string') return { ...f, dim: Number(f.dim) || 0 };
+  return def;
+}
+
+export function normalizeProfile(raw: any): Profile {
+  if (!raw || !Array.isArray(raw.pages) || raw.pages.length === 0) return defaultProfile();
+  const pages: Page[] = raw.pages.filter(Boolean).map((pg: any) => {
+    const base = newPage('');
+    const cols = int(pg.cols, 1, 12, 4);
+    const rows = int(pg.rows, 1, 10, 3);
+    const buttons: Button[] = (Array.isArray(pg.buttons) ? pg.buttons : []).filter(Boolean).map((b: any) => {
+      const style = { ...baseStyle(), ...(b.style ?? {}) } as ButtonStyle;
+      style.fill = normFill(style.fill, baseStyle().fill);
+      const x = int(b.x, 0, cols - 1, 0);
+      const y = int(b.y, 0, rows - 1, 0);
+      const type = b.type === 'slider' ? 'slider' : 'button';
+      return {
+        id: typeof b.id === 'string' && b.id ? b.id : uid(),
+        x,
+        y,
+        w: int(b.w, 1, cols - x, 1),
+        h: int(b.h, 1, rows - y, 1),
+        type,
+        style,
+        actions: normActions(b.actions),
+        longActions: normActions(b.longActions),
+        active: b.active && typeof b.active.state === 'string'
+          ? { state: b.active.state, equals: String(b.active.equals ?? ''), style: b.active.style ?? {}, dot: !!b.active.dot }
+          : null,
+        slider: type === 'slider'
+          ? { target: { kind: 'master', input: '', app: '' }, vertical: true, color: '#8F6BFF', ...(b.slider ?? {}) }
+          : null,
+      } as Button;
+    });
+    return {
+      id: typeof pg.id === 'string' && pg.id ? pg.id : uid(),
+      name: String(pg.name ?? 'Страница'),
+      cols,
+      rows,
+      gap: int(pg.gap, 0, 40, 12),
+      background: normFill(pg.background, base.background),
+      buttons,
+    };
+  });
+  const home = pages.some((p) => p.id === raw.home) ? raw.home : pages[0].id;
+  return {
+    version: 1,
+    name: String(raw.name ?? 'Мой пульт'),
+    accent: typeof raw.accent === 'string' ? raw.accent : ACCENT,
+    pageDots: raw.pageDots !== false,
+    keepAwake: raw.keepAwake !== false,
+    home,
+    pages,
+  };
 }

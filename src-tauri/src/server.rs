@@ -91,8 +91,8 @@ fn set_status(core: &CoreRef, running: bool, port: u16, error: Option<String>) {
     let _ = core.app.emit("ft-server", st);
 }
 
-async fn ping() -> Json<Value> {
-    Json(json!({ "app": "free-touch", "version": env!("CARGO_PKG_VERSION"), "pc": pc_name() }))
+async fn ping(State(ctx): State<Ctx>) -> Json<Value> {
+    Json(json!({ "app": "free-touch", "version": ctx.core.version(), "pc": pc_name() }))
 }
 
 async fn static_file(uri: Uri) -> Response {
@@ -152,7 +152,7 @@ async fn client_loop(socket: WebSocket, addr: SocketAddr, ctx: Ctx) {
     let mut rev = core.settings_rev.subscribe();
     let (token, port) = { let st = core.settings(); (st.token, st.port) };
 
-    let hello = json!({ "t": "hello", "pc": pc_name(), "version": env!("CARGO_PKG_VERSION"), "client": id });
+    let hello = json!({ "t": "hello", "pc": pc_name(), "version": core.version(), "client": id });
     let profile = json!({ "t": "profile", "profile": core.profile.read().unwrap().clone() });
     let states = json!({ "t": "states", "states": core.states_snapshot() });
     for m in [hello, profile, states] {
@@ -225,6 +225,7 @@ fn handle(ctx: &Ctx, id: u64, text: &str) {
             if b.kind == "slider" {
                 return;
             }
+            actions::arm_hold(core, id, &b);
             let ctx = ctx.clone();
             tokio::spawn(async move {
                 let errs = actions::run(&ctx.core, &ctx.obs, b.actions, Some(id), Some(button)).await;
@@ -234,6 +235,16 @@ fn handle(ctx: &Ctx, id: u64, text: &str) {
             });
         }
         "up" => actions::release(core, id, Some(&s("button"))),
+        "long" => {
+            let Some(b) = actions::find_button(core, &s("page"), &s("button")) else { return };
+            let ctx = ctx.clone();
+            tokio::spawn(async move {
+                let errs = actions::run(&ctx.core, &ctx.obs, b.long_actions, Some(id), None).await;
+                if let Some(e) = errs.first() {
+                    ctx.core.send_to(id, &json!({ "t": "toast", "text": e }));
+                }
+            });
+        }
         "slide" => {
             let Some(b) = actions::find_button(core, &s("page"), &s("button")) else { return };
             let Some(sl) = b.slider else { return };

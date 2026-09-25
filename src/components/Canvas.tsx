@@ -24,7 +24,7 @@ export function Canvas() {
   const wrap = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 600, h: 400 });
   const [drag, setDrag] = useState<Drag | null>(null);
-  const [ghost, setGhost] = useState<{ x: number; y: number; w: number; h: number; ok: boolean } | null>(null);
+  const [ghost, setGhost] = useState<{ x: number; y: number; w: number; h: number; ok: boolean; swap?: string } | null>(null);
   const [now, setNow] = useState(new Date());
 
   useLayoutEffect(() => {
@@ -57,7 +57,7 @@ export function Canvas() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement;
-      if (t.closest('input, textarea, select, [contenteditable]')) return;
+      if (t.closest('input, textarea, select, [contenteditable], .insp, .modal-bg')) return;
       const sel = page.buttons.find((b) => b.id === selected);
       if ((e.key === 'Delete' || e.key === 'Backspace') && sel) {
         e.preventDefault();
@@ -114,7 +114,20 @@ export function Canvas() {
       const h = Math.max(1, Math.min(page.rows - drag.oy, drag.oh + dy));
       g = { x: drag.ox, y: drag.oy, w, h };
     }
-    setGhost({ ...g, ok: fits(page, g.x, g.y, g.w, g.h, drag.id) });
+    let ok = fits(page, g.x, g.y, g.w, g.h, drag.id);
+    let swap: string | undefined;
+    if (!ok && drag.kind === 'move') {
+      // Кнопку того же размера, стоящую ровно на месте, меняем местами с перетаскиваемой.
+      const other = page.buttons.find((b) => b.id !== drag.id && b.x === g.x && b.y === g.y && b.w === drag.ow && b.h === drag.oh);
+      if (other) {
+        const rest = { ...page, buttons: page.buttons.filter((b) => b.id !== other.id) };
+        if (fits(rest, g.x, g.y, g.w, g.h, drag.id) && fits(rest, drag.ox, drag.oy, other.w, other.h, drag.id)) {
+          ok = true;
+          swap = other.id;
+        }
+      }
+    }
+    setGhost({ ...g, ok, swap });
   };
 
   const onUp = () => {
@@ -122,6 +135,8 @@ export function Canvas() {
       const g = ghost;
       updatePage((p) => {
         const b = p.buttons.find((x) => x.id === drag.id);
+        const other = g.swap ? p.buttons.find((x) => x.id === g.swap) : undefined;
+        if (other && b) Object.assign(other, { x: b.x, y: b.y });
         if (b) Object.assign(b, { x: g.x, y: g.y, w: g.w, h: g.h });
       });
     }
@@ -170,6 +185,7 @@ export function Canvas() {
                 {b.type === 'slider'
                   ? <SliderFace button={b} states={states} value={Number(states[sliderStateKey(b)] ?? 50)} />
                   : <ButtonFace button={b} states={states} accent={profile.accent} now={now} />}
+                {b.type === 'button' && b.longActions.length > 0 && <span className="ft-long-mark" />}
                 {isSel && <span className="rs-handle" onPointerDown={(e) => startDrag(e, b, 'resize')} title="Потяните, чтобы изменить размер" />}
               </div>
             );
@@ -178,7 +194,7 @@ export function Canvas() {
         </div>
       </div>
       <div className="canvas-hint">
-        Клик по пустой ячейке — новая кнопка · тяните кнопку, чтобы переставить · уголок — размер · Ctrl+D — копия · Delete — удалить
+        Клик по пустой ячейке — новая кнопка · перетащите на другую кнопку — поменяются местами · уголок — размер · Ctrl+D — копия · Delete — удалить
       </div>
     </div>
   );

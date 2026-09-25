@@ -8,6 +8,7 @@ export function PairModal({ onClose }: { onClose: () => void }) {
   const { settings, ips, server, clients, saveSettings, setSettingsLocal, refreshIps } = useStore();
   const [qr, setQr] = useState('');
   const [copied, setCopied] = useState(false);
+  const [fw, setFw] = useState('');
 
   useEffect(() => { refreshIps(); }, [refreshIps]);
 
@@ -60,7 +61,17 @@ export function PairModal({ onClose }: { onClose: () => void }) {
           <details className="pair-help">
             <summary>Телефон не подключается?</summary>
             <ul>
-              <li>При первом запуске Windows спрашивает разрешение для сети — разрешите для частных сетей. Если окно закрыли, разрешите Free Touch в «Брандмауэре Защитника Windows».</li>
+              <li>
+                Чаще всего мешает брандмауэр Windows.{' '}
+                <button
+                  className="link"
+                  onClick={async () => {
+                    try { await api.allowFirewall(); setFw('Готово. Обновите страницу на телефоне.'); }
+                    catch { setFw('Windows не дала разрешение — нужно нажать «Да» в окне запроса.'); }
+                  }}
+                >Разрешить Free Touch в брандмауэре</button>
+                {fw && <span className="fw-note">{fw}</span>}
+              </li>
               <li>Выключите на телефоне VPN и мобильный интернет — иначе он может идти мимо домашней сети.</li>
               <li>Гостевая Wi-Fi часто запрещает устройствам видеть друг друга.</li>
             </ul>

@@ -95,6 +95,8 @@ export interface Button {
   type: 'button' | 'slider';
   style: ButtonStyle;
   actions: Action[];
+  /** Действия при долгом нажатии (полсекунды и дольше). Пусто — долгого нажатия нет. */
+  longActions: Action[];
   active: ActiveRule | null;
   slider: { target: SliderTarget; vertical: boolean; color: string } | null;
 }
@@ -115,6 +117,8 @@ export interface Profile {
   accent: string;
   /** Показывать точки страниц внизу пульта. */
   pageDots: boolean;
+  /** Не давать экрану телефона гаснуть, пока открыт пульт. */
+  keepAwake: boolean;
   home: string;
   pages: Page[];
 }
@@ -140,6 +144,7 @@ export interface Settings {
   closeToTray: boolean;
   preferredIp: string;
   obsAutodetected: boolean;
+  autoUpdate: boolean;
 }
 
 export interface ClientInfo {

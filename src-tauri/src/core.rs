@@ -34,6 +34,8 @@ pub struct Settings {
     pub preferred_ip: String,
     /// Настройки OBS уже подтягивались из конфига obs-websocket.
     pub obs_autodetected: bool,
+    /// Проверять обновления на GitHub при запуске.
+    pub auto_update: bool,
 }
 
 impl Default for Settings {
@@ -46,6 +48,7 @@ impl Default for Settings {
             close_to_tray: true,
             preferred_ip: String::new(),
             obs_autodetected: false,
+            auto_update: true,
         }
     }
 }
@@ -94,6 +97,10 @@ impl Core {
             settings.token = new_token();
         }
         let profile: Value = read_json(&dir.join("profile.json")).unwrap_or(Value::Null);
+        // Копия профиля с прошлого запуска — на случай, если что-то испортится.
+        if !profile.is_null() {
+            let _ = std::fs::copy(dir.join("profile.json"), dir.join("profile.backup.json"));
+        }
         let (bus, _) = broadcast::channel(256);
         let (settings_rev, _) = watch::channel(0);
         let core = Arc::new(Core {
@@ -110,6 +117,11 @@ impl Core {
         });
         core.save_settings_file();
         core
+    }
+
+    /// Версия из tauri.conf.json — по ней же работает автообновление.
+    pub fn version(&self) -> String {
+        self.app.package_info().version.to_string()
     }
 
     pub fn settings(&self) -> Settings {

@@ -85,6 +85,7 @@ pub struct ButtonDef {
     #[serde(rename = "type")]
     pub kind: String,
     pub actions: Vec<Action>,
+    pub long_actions: Vec<Action>,
     pub slider: Option<SliderDef>,
 }
 
@@ -138,9 +139,18 @@ async fn run_one(core: &CoreRef, obs: &Arc<Obs>, a: Action, client: Option<u64>,
             }
             if hold {
                 if let (Some(c), Some(k)) = (client, hold_key) {
-                    let keys2 = keys.clone();
-                    blocking(move || input::keys_down(&keys2)).await;
-                    core.held.lock().unwrap().entry((c, k.to_string())).or_default().extend(keys);
+                    // Запись о кнопке создаётся сразу при нажатии (см. arm_hold). Если палец
+                    // уже убран, записи нет: зажимать нельзя — клавиши залипнут, поэтому
+                    // просто нажимаем и отпускаем.
+                    {
+                        let mut held = core.held.lock().unwrap();
+                        if let Some(v) = held.get_mut(&(c, k.to_string())) {
+                            input::keys_down(&keys);
+                            v.extend(keys);
+                            return Ok(());
+                        }
+                    }
+                    blocking(move || input::tap(&keys)).await;
                     return Ok(());
                 }
             }
@@ -287,16 +297,23 @@ pub async fn slide(core: &CoreRef, obs: &Arc<Obs>, t: &SliderTarget, value: f64)
     }
 }
 
+/// Кнопку нажали: если в ней есть удерживаемые клавиши, заводим запись заранее,
+/// пока действия ещё не начали выполняться.
+pub fn arm_hold(core: &CoreRef, client: u64, button: &ButtonDef) {
+    if button.actions.iter().any(|a| matches!(a, Action::Hotkey { hold: true, .. })) {
+        core.held.lock().unwrap().insert((client, button.id.clone()), Vec::new());
+    }
+}
+
 /// Отпустить клавиши, которые кнопка держала зажатыми.
 pub fn release(core: &CoreRef, client: u64, key: Option<&str>) {
-    let keys: Vec<Vec<String>> = {
-        let mut h = core.held.lock().unwrap();
-        let ks: Vec<(u64, String)> =
-            h.keys().filter(|(c, k)| *c == client && key.map_or(true, |kk| kk == k)).cloned().collect();
-        ks.into_iter().filter_map(|k| h.remove(&k)).collect()
-    };
-    for k in keys {
-        std::thread::spawn(move || input::keys_up(&k));
+    let mut h = core.held.lock().unwrap();
+    let ks: Vec<(u64, String)> =
+        h.keys().filter(|(c, k)| *c == client && key.map_or(true, |kk| kk == k)).cloned().collect();
+    for k in ks {
+        if let Some(keys) = h.remove(&k) {
+            input::keys_up(&keys);
+        }
     }
 }
 
@@ -309,7 +326,8 @@ fn open(target: &str, args: &str) {
     unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
         let args = if args.trim().is_empty() { None } else { Some(HSTRING::from(args)) };
-        let dir = std::path::Path::new(target).parent().map(|p| HSTRING::from(p.as_os_str()));
+        let path = std::path::Path::new(target);
+        let dir = if path.is_file() { path.parent().map(|p| HSTRING::from(p.as_os_str())) } else { None };
         let _ = ShellExecuteW(
             None,
             &HSTRING::from("open"),

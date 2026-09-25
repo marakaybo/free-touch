@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Copy, Play, Trash2 } from 'lucide-react';
 import { PAGE_BACKGROUNDS, STYLE_PRESETS, suggestActive, uid, withStyle, newButton, newPage } from '../../shared/defaults';
+import { BRANDS } from '../../shared/brands';
 import { ButtonFace, fillCss } from '../../shared/render';
 import type { Action, ActiveRule, Button, ButtonStyle, Fill, SliderTarget } from '../../shared/types';
 import { api } from '../api';
@@ -57,7 +58,7 @@ function ButtonInspector({ b }: { b: Button }) {
       <div className="tabs">
         <button className={tab === 'look' ? 'on' : ''} onClick={() => setTab('look')}>Вид</button>
         <button className={tab === 'actions' ? 'on' : ''} onClick={() => setTab('actions')}>
-          {b.type === 'slider' ? 'Управляет' : 'Действия'}{b.type === 'button' && b.actions.length > 0 && <i>{b.actions.length}</i>}
+          {b.type === 'slider' ? 'Управляет' : 'Действия'}{b.type === 'button' && b.actions.length + b.longActions.length > 0 && <i>{b.actions.length + b.longActions.length}</i>}
         </button>
         {b.type === 'button' && <button className={tab === 'active' ? 'on' : ''} onClick={() => setTab('active')}>Подсветка{b.active && <i>●</i>}</button>}
       </div>
@@ -128,6 +129,11 @@ function LookTab({ b, up }: { b: Button; up: Up }) {
           <>
             <Field label="Размер"><Range value={s.iconSize} min={10} max={90} onChange={(v) => set('iconSize', v)} /></Field>
             {s.icon.kind !== 'emoji' && s.icon.kind !== 'image' && <Color value={s.iconColor} onChange={(v) => set('iconColor', v)} />}
+            {s.icon.kind === 'brand' && BRANDS[s.icon.name] && (
+              <button className="btn ghost sm" onClick={() => set('iconColor', BRANDS[(s.icon as { name: string }).name].hex, false)}>
+                <span className="brand-dot" style={{ background: BRANDS[s.icon.name].hex }} /> Фирменный цвет {BRANDS[s.icon.name].title}
+              </button>
+            )}
           </>
         )}
       </Section>
@@ -154,38 +160,60 @@ function LookTab({ b, up }: { b: Button; up: Up }) {
 
 function ActionsTab({ b, up }: { b: Button; up: Up }) {
   const [result, setResult] = useState<string | null>(null);
+  const [which, setWhich] = useState<'actions' | 'longActions'>('actions');
+  const main = which === 'actions';
+  const list = b[which];
   const change = (i: number, a: Action) => up((x) => {
-    const old = x.actions[i];
-    x.actions[i] = a;
-    autoActive(x, old, a);
-    autoLabel(x, a);
-  }, `act${i}`);
+    const old = x[which][i];
+    x[which][i] = a;
+    if (main) { autoActive(x, old, a); autoLabel(x, a); }
+  }, `${which}${i}`);
   return (
     <>
-      {b.actions.length === 0 && (
-        <div className="empty">Кнопка пока ничего не делает. Добавьте действие — их можно выстроить цепочкой, они выполнятся по порядку.</div>
+      <Seg
+        value={which}
+        onChange={setWhich}
+        options={[
+          { v: 'actions', label: <>Нажатие{b.actions.length > 0 && <em className="seg-n">{b.actions.length}</em>}</> },
+          { v: 'longActions', label: <>Долгое нажатие{b.longActions.length > 0 && <em className="seg-n">{b.longActions.length}</em>}</> },
+        ]}
+      />
+      {list.length === 0 && (
+        <div className="empty">
+          {main
+            ? 'Кнопка пока ничего не делает. Добавьте действие — их можно выстроить цепочкой, они выполнятся по порядку.'
+            : 'Второе действие на той же кнопке: сработает, если подержать палец полсекунды. Например, коротко — сменить сцену, долго — выключить микрофон.'}
+        </div>
       )}
-      {b.actions.map((a, i) => (
+      {!main && list.length > 0 && b.actions.length > 0 && (
+        <span className="fld-hint">Когда есть долгое нажатие, обычное срабатывает в момент, когда палец отпускают.</span>
+      )}
+      {list.map((a, i) => (
         <ActionCard
-          key={i}
+          key={`${which}${i}`}
           action={a}
           index={i}
-          count={b.actions.length}
+          count={list.length}
           onChange={(na) => change(i, na)}
           onRemove={() => up((x) => {
-            const [old] = x.actions.splice(i, 1);
+            const [old] = x[which].splice(i, 1);
+            if (!main) return;
             const sug = suggestActive(old);
             if (sug && x.active && x.active.state === sug.state && x.active.equals === sug.equals) x.active = null;
           })}
-          onMove={(d) => up((x) => { const [it] = x.actions.splice(i, 1); x.actions.splice(i + d, 0, it); })}
+          onMove={(d) => up((x) => { const [it] = x[which].splice(i, 1); x[which].splice(i + d, 0, it); })}
         />
       ))}
-      <AddActionMenu onAdd={(a) => up((x) => { x.actions.push(a); autoActive(x, null, a); })} />
-      {b.actions.length > 0 && (
+      <AddActionMenu onAdd={(a) => up((x) => {
+        if (!main && a.type === 'hotkey') a.hold = false;
+        x[which].push(a);
+        if (main) autoActive(x, null, a);
+      })} />
+      {list.length > 0 && (
         <button
           className="btn wide"
           onClick={async () => {
-            const errs = await api.testActions(b.actions);
+            const errs = await api.testActions(list);
             setResult(errs.length ? errs.join('\n') : 'Выполнено');
             setTimeout(() => setResult(null), 2500);
           }}
@@ -352,6 +380,7 @@ function PageInspector() {
         <Section title="Весь пульт">
           <Field label="Цвет выделения"><Color value={profile.accent} onChange={(v) => update((p) => { p.accent = v; }, 'accent')} /></Field>
           <Toggle checked={profile.pageDots} onChange={(v) => update((p) => { p.pageDots = v; })} label="Точки страниц внизу пульта" />
+          <Toggle checked={profile.keepAwake} onChange={(v) => update((p) => { p.keepAwake = v; })} label="Не гасить экран телефона" />
         </Section>
         <Section title="Быстрый старт">
           <button className="btn wide" disabled={!obs.connected || obs.scenes.length === 0} onClick={genObsPage}>

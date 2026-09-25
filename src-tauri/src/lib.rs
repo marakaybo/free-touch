@@ -54,7 +54,7 @@ fn lan_ips() -> Vec<NetIp> {
 fn bootstrap(st: State<AppState>) -> Value {
     let core = &st.core;
     json!({
-        "version": env!("CARGO_PKG_VERSION"),
+        "version": core.version(),
         "pc": server::pc_name(),
         "profile": core.profile.read().unwrap().clone(),
         "settings": core.settings(),
@@ -146,6 +146,31 @@ fn read_image(path: String) -> Result<String, String> {
     Ok(format!("data:{};base64,{}", mime, base64::engine::general_purpose::STANDARD.encode(data)))
 }
 
+/// Правило брандмауэра для входящих подключений телефонов. Нужны права
+/// администратора, поэтому Windows покажет запрос UAC.
+#[tauri::command]
+fn allow_firewall() -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        use windows::core::HSTRING;
+        use windows::Win32::UI::Shell::ShellExecuteW;
+        use windows::Win32::UI::WindowsAndMessaging::SW_HIDE;
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let rule = "name=\"Free Touch\"";
+        let cmd = format!(
+            "/S /C \"netsh advfirewall firewall delete rule {rule} >nul 2>&1 & netsh advfirewall firewall add rule {rule} dir=in action=allow program=\"{}\" enable=yes profile=any\"",
+            exe.display()
+        );
+        let r = unsafe {
+            ShellExecuteW(None, &HSTRING::from("runas"), &HSTRING::from("cmd.exe"), &HSTRING::from(cmd), &HSTRING::new(), SW_HIDE)
+        };
+        if (r.0 as isize) <= 32 {
+            return Err("Разрешение не выдано".into());
+        }
+    }
+    Ok(())
+}
+
 #[tauri::command]
 fn quit(app: AppHandle) {
     app.exit(0);
@@ -179,6 +204,8 @@ pub fn run() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main(app)))
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--hidden"]),
@@ -259,6 +286,7 @@ pub fn run() {
             read_text,
             write_text,
             read_image,
+            allow_firewall,
             quit
         ])
         .run(tauri::generate_context!())

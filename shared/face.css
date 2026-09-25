@@ -78,3 +78,9 @@
 .ft-slider.is-horizontal .ft-slider-value { font-size: 38cqh; }
 .ft-slider-label { font-size: 13cqw; opacity: .8; text-align: center; font-weight: 600; }
 .ft-slider.is-horizontal .ft-slider-label { font-size: 22cqh; }
+
+/* Метка кнопки, у которой есть долгое нажатие. */
+.ft-long-mark {
+  position: absolute; left: 50%; bottom: 4.5cqmin; transform: translateX(-50%);
+  width: 14cqmin; height: 2.2cqmin; border-radius: 2cqmin; background: rgba(255,255,255,.35); pointer-events: none;
+}

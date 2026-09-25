@@ -36,6 +36,7 @@ export const api = {
   readText: (path: string) => invoke<string>('read_text', { path }),
   writeText: (path: string, text: string) => invoke<void>('write_text', { path, text }),
   readImage: (path: string) => invoke<string>('read_image', { path }),
+  allowFirewall: () => invoke<void>('allow_firewall'),
   quit: () => invoke<void>('quit'),
 };
 

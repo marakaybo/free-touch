@@ -63,3 +63,19 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 .pn-form input { user-select: text; -webkit-user-select: text; font: inherit; font-size: 15px; padding: 13px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: inherit; outline: none; }
 .pn-form button { padding: 13px; border-radius: 12px; background: linear-gradient(135deg, #8F6BFF, #1FD6C1); color: #fff; font-weight: 700; }
 .pn-err { color: #FF9AA2; font-size: 14px; max-width: 320px; line-height: 1.4; }
+
+.pn-stage { position: relative; }
+.pn-rotate {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 5;
+  display: flex; align-items: center; gap: 8px; white-space: nowrap;
+  padding: 8px 14px; border-radius: 20px; font-size: 13px;
+  background: rgba(20,21,28,.92); border: 1px solid rgba(255,255,255,.1); color: rgba(236,237,243,.85);
+  animation: pn-in .3s ease-out;
+}
+/* Заполнение, пока палец держат на кнопке с долгим нажатием. */
+.is-holding .ft-face::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: linear-gradient(0deg, rgba(255,255,255,.22), rgba(255,255,255,.22)) no-repeat bottom / 100% 0%;
+  animation: pn-hold .5s linear forwards;
+}
+@keyframes pn-hold { to { background-size: 100% 100% } }

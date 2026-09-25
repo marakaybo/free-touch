@@ -1,10 +1,11 @@
-# Сборка установщика для Windows. Запускается при пуше тега v*, например v0.1.0.
+# Выпуск новой версии. Запускается, когда пушится тег v*, например v0.2.0
+# (удобнее всего — npm run release 0.2.0). Собирает установщик, подписывает его
+# и публикует релиз с latest.json: по нему программа находит обновление сама.
 name: Release
 
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
 
 permissions:
   contents: write
@@ -23,14 +24,24 @@ jobs:
         with:
           workspaces: src-tauri
       - run: npm ci
+      - name: Описание версии из CHANGELOG.md
+        id: notes
+        shell: bash
+        run: |
+          {
+            echo 'body<<__NOTES__'
+            node scripts/changelog.mjs "${GITHUB_REF_NAME#v}"
+            echo '__NOTES__'
+          } >> "$GITHUB_OUTPUT"
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Free Touch ${{ github.ref_name }}
-          releaseBody: |
-            Установщик для Windows — файл `Free.Touch_…_x64-setup.exe` ниже.
-            Телефон подключается через браузер по QR-коду, отдельное приложение ставить не нужно.
-          releaseDraft: true
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: false
           prerelease: false
+          includeUpdaterJson: true

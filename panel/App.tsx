@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import NoSleep from 'nosleep.js';
+import { normalizeProfile } from '../shared/defaults';
 import { ButtonFace, SliderFace, cellStyle, fillCss, sliderStateKey, usesClock } from '../shared/render';
 import type { Button, Page, Profile, States } from '../shared/types';
 
@@ -53,7 +55,7 @@ function deviceName(): string {
   return m ? `${m[1]}` : os;
 }
 
-const vibrate = (ms: number) => { try { navigator.vibrate?.(ms); } catch { /* нет вибро */ } };
+const vibrate = (ms: number | number[]) => { try { navigator.vibrate?.(ms); } catch { /* нет вибро */ } };
 
 // ---------- приложение ----------
 
@@ -70,23 +72,42 @@ export function App() {
   const profileRef = useRef<Profile | null>(null);
   profileRef.current = profile;
 
+  const pageRef = useRef(pageId);
+  pageRef.current = pageId;
+
   const goto = useCallback((p: string) => {
     const prof = profileRef.current;
     if (!prof) return;
-    setPageId((cur) => {
-      const ids = prof.pages.map((x) => x.id);
-      const idx = Math.max(0, ids.indexOf(cur));
-      let next = cur;
-      if (p === '@back') next = historyRef.current.pop() ?? prof.home;
-      else if (p === '@home') next = prof.home;
-      else if (p === '@next') next = ids[(idx + 1) % ids.length];
-      else if (p === '@prev') next = ids[(idx - 1 + ids.length) % ids.length];
-      else next = p;
-      if (p !== '@back' && next !== cur) historyRef.current.push(cur);
-      store.set('ft.page', next);
-      return next;
-    });
+    const cur = pageRef.current;
+    const ids = prof.pages.map((x) => x.id);
+    const idx = Math.max(0, ids.indexOf(cur));
+    let next = cur;
+    if (p === '@back') next = historyRef.current.pop() ?? prof.home;
+    else if (p === '@home') next = prof.home;
+    else if (p === '@next') next = ids[(idx + 1) % ids.length];
+    else if (p === '@prev') next = ids[(idx - 1 + ids.length) % ids.length];
+    else next = p;
+    if (p !== '@back' && next !== cur) {
+      historyRef.current.push(cur);
+      if (historyRef.current.length > 30) historyRef.current.shift();
+    }
+    pageRef.current = next;
+    store.set('ft.page', next);
+    setPageId(next);
   }, []);
+
+  // Экран не гаснет, пока открыт пульт. Браузер разрешает это только после касания.
+  const keepAwake = profile?.keepAwake ?? true;
+  useEffect(() => {
+    const ns = new NoSleep();
+    if (!keepAwake) return;
+    const on = () => { if (!ns.isEnabled) ns.enable().catch(() => {}); };
+    document.addEventListener('pointerdown', on, { capture: true });
+    return () => {
+      document.removeEventListener('pointerdown', on, { capture: true });
+      ns.disable();
+    };
+  }, [keepAwake]);
 
   // WebSocket с переподключением
   useEffect(() => {
@@ -110,7 +131,7 @@ export function App() {
         const m = JSON.parse(e.data);
         switch (m.t) {
           case 'hello': setPcName(m.pc); setConn('online'); break;
-          case 'profile': setProfile(m.profile); break;
+          case 'profile': setProfile(normalizeProfile(m.profile)); break;
           case 'states': setStates(m.states); break;
           case 'state': setStates((s) => ({ ...s, [m.key]: m.value })); break;
           case 'goto': goto(m.page); break;
@@ -241,6 +262,12 @@ function PageView({ page, profile, states, send, onSwipe }: {
   const cell = Math.max(20, Math.min((availW - page.gap * (page.cols - 1)) / page.cols, (availH - page.gap * (page.rows - 1)) / page.rows));
   const gw = cell * page.cols + page.gap * (page.cols - 1);
   const gh = cell * page.rows + page.gap * (page.rows - 1);
+  // Если в другой ориентации кнопки станут заметно крупнее — подскажем повернуть телефон.
+  const rotW = vp.h - PAD * 2;
+  const rotH = vp.w - PAD * 2 - BAR;
+  const cellRot = Math.min((rotW - page.gap * (page.cols - 1)) / page.cols, (rotH - page.gap * (page.rows - 1)) / page.rows);
+  const [hintOff, setHintOff] = useState(false);
+  const rotateHint = !hintOff && cell < 110 && cellRot > cell * 1.4;
 
   // свайп по пустому месту — соседняя страница
   const swipe = useRef<{ x: number; y: number } | null>(null);
@@ -261,6 +288,12 @@ function PageView({ page, profile, states, send, onSwipe }: {
         if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(e.clientY - s.y) * 1.5) onSwipe(dx < 0 ? 1 : -1);
       }}
     >
+      {rotateHint && (
+        <button className="pn-rotate" onClick={() => setHintOff(true)}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M3 12a9 9 0 0 1 3-6.7M21 12a9 9 0 0 1-3 6.7" /></svg>
+          Поверните телефон — кнопки станут крупнее
+        </button>
+      )}
       <div className="pn-grid" style={{ width: gw, height: gh, gridTemplateColumns: `repeat(${page.cols}, 1fr)`, gridTemplateRows: `repeat(${page.rows}, 1fr)`, gap: page.gap }}>
         {page.buttons.map((b) =>
           b.type === 'slider' ? (
@@ -274,21 +307,37 @@ function PageView({ page, profile, states, send, onSwipe }: {
   );
 }
 
+const LONG_MS = 500;
+
 function ButtonCell({ b, page, states, send, accent, now }: {
   b: Button; page: Page; states: States; send: (m: object) => void; accent: string; now: Date;
 }) {
   const [pressed, setPressed] = useState(false);
   const [pulse, setPulse] = useState(0);
   const down = useRef(false);
-  const release = () => {
+  const longTimer = useRef<number | undefined>(undefined);
+  const longFired = useRef(false);
+  const hasLong = b.longActions.length > 0;
+  const msg = (t: string) => send({ t, page: page.id, button: b.id });
+
+  const release = (cancelled: boolean) => {
     if (!down.current) return;
     down.current = false;
     setPressed(false);
-    send({ t: 'up', page: page.id, button: b.id });
+    if (hasLong) {
+      clearTimeout(longTimer.current);
+      // Короткое нажатие у кнопки с долгим срабатывает, когда палец отпустили.
+      if (!longFired.current && !cancelled) { msg('down'); msg('up'); }
+      return;
+    }
+    msg('up');
   };
+
+  useEffect(() => () => clearTimeout(longTimer.current), []);
+
   return (
     <div
-      className="ft-cell"
+      className={`ft-cell ${hasLong && pressed ? 'is-holding' : ''}`}
       style={cellStyle(b)}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -296,13 +345,24 @@ function ButtonCell({ b, page, states, send, accent, now }: {
         setPressed(true);
         setPulse((p) => p + 1);
         vibrate(12);
-        send({ t: 'down', page: page.id, button: b.id });
+        if (hasLong) {
+          longFired.current = false;
+          longTimer.current = window.setTimeout(() => {
+            longFired.current = true;
+            vibrate([20, 40, 30]);
+            setPulse((p) => p + 1);
+            msg('long');
+          }, LONG_MS);
+        } else {
+          msg('down');
+        }
       }}
-      onPointerUp={release}
-      onPointerCancel={release}
+      onPointerUp={() => release(false)}
+      onPointerCancel={() => release(true)}
       onContextMenu={(e) => e.preventDefault()}
     >
       <ButtonFace button={b} states={states} accent={accent} pressed={pressed} pulse={pulse} now={now} />
+      {hasLong && <span className="ft-long-mark" />}
     </div>
   );
 }

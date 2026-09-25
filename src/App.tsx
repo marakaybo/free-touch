@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Copy, Minus, Plus, Redo2, Settings as Gear, Smartphone, Square, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, Download, Minus, Plus, Redo2, Settings as Gear, Smartphone, Square, Trash2, Undo2, X } from 'lucide-react';
 import { newPage, uid } from '../shared/defaults';
 import { on, win } from './api';
 import { Canvas } from './components/Canvas';
@@ -7,6 +7,7 @@ import { Inspector } from './components/Inspector';
 import { PairModal } from './components/PairModal';
 import { SettingsModal } from './components/SettingsModal';
 import { StoreProvider, useStore } from './store';
+import { UpdateModal, useUpdater } from './updater';
 
 export function App() {
   return (
@@ -17,9 +18,11 @@ export function App() {
 }
 
 function Shell() {
-  const { undo, redo, clients } = useStore();
+  const { undo, redo, clients, settings: cfg } = useStore();
   const [pair, setPair] = useState(false);
   const [settings, setSettings] = useState(false);
+  const upd = useUpdater(cfg.autoUpdate !== false);
+  const [showUpd, setShowUpd] = useState(false);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -49,19 +52,31 @@ function Shell() {
 
   return (
     <div className="app">
-      <TitleBar onPair={() => setPair(true)} onSettings={() => setSettings(true)} phones={clients.length} />
+      <TitleBar onPair={() => setPair(true)} onSettings={() => setSettings(true)} phones={clients.length} updateVersion={upd.update?.version} onUpdate={() => setShowUpd(true)} />
       <div className="main">
         <Sidebar />
         <Canvas />
         <Inspector />
       </div>
       {pair && <PairModal onClose={() => setPair(false)} />}
-      {settings && <SettingsModal onClose={() => setSettings(false)} />}
+      {settings && (
+        <SettingsModal
+          onClose={() => setSettings(false)}
+          checkUpdates={async () => {
+            const r = await upd.check(true);
+            if (r.update) { setSettings(false); setShowUpd(true); }
+            return r;
+          }}
+        />
+      )}
+      {showUpd && upd.update && <UpdateModal update={upd.update} onClose={(skip) => { setShowUpd(false); upd.dismiss(skip); }} />}
     </div>
   );
 }
 
-function TitleBar({ onPair, onSettings, phones }: { onPair: () => void; onSettings: () => void; phones: number }) {
+function TitleBar({ onPair, onSettings, phones, updateVersion, onUpdate }: {
+  onPair: () => void; onSettings: () => void; phones: number; updateVersion?: string; onUpdate: () => void;
+}) {
   const { undo, redo, canUndo, canRedo, server, obs, settings } = useStore();
   const obsText = obs.connected ? 'OBS подключён' : settings.obs.enabled ? (obs.error ?? 'OBS не подключён') : 'OBS выключен';
   return (
@@ -79,6 +94,11 @@ function TitleBar({ onPair, onSettings, phones }: { onPair: () => void; onSettin
         </span>
       </div>
       <div className="tb-right">
+        {updateVersion && (
+          <button className="upd-pill" onClick={onUpdate} title="Посмотреть, что нового">
+            <Download size={14} /> Обновление {updateVersion}
+          </button>
+        )}
         <button className="icon-btn" disabled={!canUndo} onClick={undo} title="Отменить (Ctrl+Z)"><Undo2 size={16} /></button>
         <button className="icon-btn" disabled={!canRedo} onClick={redo} title="Вернуть (Ctrl+Y)"><Redo2 size={16} /></button>
         <button className="btn primary" onClick={onPair}><Smartphone size={15} /> Подключить телефон</button>
