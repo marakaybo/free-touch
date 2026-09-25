@@ -4,6 +4,7 @@ mod core;
 mod input;
 mod obs;
 mod server;
+mod usb;
 
 use crate::core::{Core, CoreRef, Settings};
 use crate::obs::Obs;
@@ -17,6 +18,7 @@ use tauri::{AppHandle, Emitter, Manager, State, WindowEvent};
 struct AppState {
     core: CoreRef,
     obs: Arc<Obs>,
+    usb: Arc<usb::Usb>,
 }
 
 #[derive(Serialize)]
@@ -63,6 +65,7 @@ fn bootstrap(st: State<AppState>) -> Value {
         "obs": st.obs.meta.lock().unwrap().clone(),
         "clients": core.clients.lock().unwrap().values().cloned().collect::<Vec<_>>(),
         "ips": lan_ips(),
+        "usb": st.usb.status.lock().unwrap().clone(),
     })
 }
 
@@ -172,6 +175,13 @@ fn allow_firewall() -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn usb_install_adb(st: State<'_, AppState>) -> Result<(), String> {
+    let core = st.core.clone();
+    let usb = st.usb.clone();
+    tokio::task::spawn_blocking(move || usb::install_adb(&core, &usb)).await.map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 fn quit(app: AppHandle) {
     app.exit(0);
 }
@@ -231,7 +241,9 @@ pub fn run() {
             obs::spawn(core.clone(), obs.clone());
             audio::spawn_poller(core.clone());
             spawn_sysmon(core.clone());
-            app.manage(AppState { core: core.clone(), obs });
+            let usb = Arc::new(usb::Usb::new());
+            usb::spawn(core.clone(), usb.clone());
+            app.manage(AppState { core: core.clone(), obs, usb });
 
             let open = MenuItem::with_id(app, "open", "Открыть Free Touch", true, None::<&str>)?;
             let pair = MenuItem::with_id(app, "pair", "Подключить телефон", true, None::<&str>)?;
@@ -287,6 +299,7 @@ pub fn run() {
             write_text,
             read_image,
             allow_firewall,
+            usb_install_adb,
             quit
         ])
         .run(tauri::generate_context!())

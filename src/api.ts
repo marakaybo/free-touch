@@ -1,5 +1,5 @@
 // Мост к Rust. В обычном браузере (npm run dev без Tauri) работает на заглушках.
-import type { ClientInfo, ObsMeta, Profile, ServerStatus, Settings, States } from '../shared/types';
+import type { ClientInfo, ObsMeta, Profile, ServerStatus, Settings, States, UsbStatus } from '../shared/types';
 
 export const inTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -15,6 +15,7 @@ export interface Bootstrap {
   obs: ObsMeta;
   clients: ClientInfo[];
   ips: NetIp[];
+  usb: UsbStatus;
 }
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
@@ -37,6 +38,7 @@ export const api = {
   writeText: (path: string, text: string) => invoke<void>('write_text', { path, text }),
   readImage: (path: string) => invoke<string>('read_image', { path }),
   allowFirewall: () => invoke<void>('allow_firewall'),
+  usbInstallAdb: () => invoke<void>('usb_install_adb'),
   quit: () => invoke<void>('quit'),
 };
 
@@ -90,6 +92,7 @@ function mock(cmd: string, args?: Record<string, unknown>): unknown {
         obs: { connected: true, error: null, version: '5.6', scenes: ['Начало', 'Игра', 'Отойду', 'Конец'], collections: ['Хоррор', 'Minecraft'], audioInputs: ['Микрофон', 'Звук рабочего стола'], inputs: ['Микрофон', 'Звук рабочего стола', 'Аватар'], sources: { Игра: ['Аватар', 'Микрофон'] } },
         clients: [{ id: 1, name: 'Pixel 7', addr: '192.168.1.40' }],
         ips: [{ ip: '192.168.1.10', name: 'Wi-Fi', lan: true }, { ip: '10.8.0.2', name: 'WireGuard', lan: false }],
+        usb: { enabled: true, adb: 'C:/adb.exe', devices: [{ serial: 'R5CT123', state: 'device', model: 'SM S918B', ready: true }], error: null, installing: false },
       };
     case 'save_profile': localStorage.setItem('mock.profile', JSON.stringify(args?.profile)); return null;
     case 'save_settings': return args?.settings;

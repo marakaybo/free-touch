@@ -40,8 +40,9 @@ function initialTarget(): Target | null {
       store.set(`ft.token.${location.host}`, t);
       history.replaceState(null, '', location.pathname);
     }
-    const token = t || store.get(`ft.token.${location.host}`);
-    return token ? { host: location.host, token } : null;
+    const local = /^(localhost|127\.0\.0\.1)(:|$)/.test(location.host);
+    const token = t || store.get(`ft.token.${location.host}`) || (local ? '' : null);
+    return token !== null ? { host: location.host, token } : null;
   }
   const saved = store.get('ft.target');
   if (saved) { try { return JSON.parse(saved) as Target; } catch { /* битая запись */ } }
@@ -65,8 +66,11 @@ const vibrate = (ms: number | number[]) => {
 // ---------- приложение ----------
 
 export function App() {
-  const [target, setTarget] = useState<Target | null>(initialTarget);
-  const [conn, setConn] = useState<Conn>(target ? 'connecting' : 'setup');
+  const [savedTarget, setTarget] = useState<Target | null>(initialTarget);
+  // Приложение: если ПК доступен по USB-кабелю (adb reverse), подключаемся через него.
+  const [usbTarget, setUsbTarget] = useState<Target | null>(null);
+  const target = usbTarget ?? savedTarget;
+  const [conn, setConn] = useState<Conn>(initialTarget() ? 'connecting' : 'setup');
   const [profile, setProfile] = useState<Profile | null>(null);
   const [states, setStates] = useState<States>({});
   const [pcName, setPcName] = useState('');
@@ -120,6 +124,7 @@ export function App() {
   }, [keepAwake]);
 
   // WebSocket с переподключением
+  const targetKey = target ? `${target.host}|${target.token}` : '';
   useEffect(() => {
     if (!target) return;
     let stop = false;
@@ -170,7 +175,7 @@ export function App() {
       document.removeEventListener('visibilitychange', onVis);
       wsRef.current?.close();
     };
-  }, [target, goto]);
+  }, [targetKey, goto]);
 
   useEffect(() => {
     if (!toast) return;
@@ -216,6 +221,29 @@ export function App() {
     return () => off?.();
   }, [goto]);
 
+  // Кабель: раз в 3 секунды проверяем 127.0.0.1. Нашли — переходим на USB, пропал — назад на Wi-Fi.
+  const port = savedTarget?.host.split(':')[1] ?? '7474';
+  useEffect(() => {
+    if (!isNative) return;
+    let alive = true;
+    const probe = async () => {
+      const ctl = new AbortController();
+      const t = setTimeout(() => ctl.abort(), 800);
+      let ok = false;
+      // no-cors: ответ читать не нужно — сам факт ответа значит, что ПК доступен по кабелю.
+      try { await fetch(`http://127.0.0.1:${port}/api/ping`, { signal: ctl.signal, mode: 'no-cors', cache: 'no-store' }); ok = true; } catch { ok = false; }
+      clearTimeout(t);
+      if (!alive) return;
+      setUsbTarget((cur) => (ok ? cur ?? { host: `127.0.0.1:${port}`, token: '' } : null));
+    };
+    probe();
+    const iv = setInterval(probe, 3000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [port]);
+  useEffect(() => {
+    if (usbTarget && (conn === 'setup' || conn === 'unauthorized')) setConn('connecting');
+  }, [usbTarget, conn]);
+
   // Новая версия приложения на GitHub.
   const [apkUpdate, setApkUpdate] = useState<string | null>(null);
   useEffect(() => { checkApkUpdate().then(setApkUpdate); }, []);
@@ -247,6 +275,7 @@ export function App() {
         pageId={page?.id}
         online={conn === 'online'}
         pcName={pcName}
+        via={usbTarget || /^(localhost|127\.0\.0\.1)/.test(target.host) ? 'USB' : ''}
         onPage={(id) => goto(id)}
         onMenu={isNative ? () => setMenu(true) : undefined}
         update={apkUpdate}
@@ -263,6 +292,7 @@ export function App() {
         <div className="pn-sheet-bg" onClick={() => setMenu(false)}>
           <div className="pn-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="pn-sheet-row"><span>Компьютер</span><b className="mono">{pcName || target.host}</b></div>
+            <div className="pn-sheet-row"><span>Подключение</span><b>{usbTarget ? 'USB-кабель' : 'Wi-Fi'}</b></div>
             <div className="pn-sheet-row"><span>Версия приложения</span><b className="mono">{APP_VERSION}</b></div>
             {apkUpdate && (
               <button className="pn-btn primary" onClick={downloadApk}>Скачать версию {apkUpdate}</button>
@@ -470,8 +500,8 @@ function SliderCell({ b, page, states, send }: { b: Button; page: Page; states: 
 
 // ---------- нижняя панель ----------
 
-function BottomBar({ profile, pageId, online, pcName, onPage, onMenu, update }: {
-  profile: Profile | null; pageId?: string; online: boolean; pcName: string; onPage: (id: string) => void;
+function BottomBar({ profile, pageId, online, pcName, via, onPage, onMenu, update }: {
+  profile: Profile | null; pageId?: string; online: boolean; pcName: string; via: string; onPage: (id: string) => void;
   onMenu?: () => void; update?: string | null;
 }) {
   const [fs, setFs] = useState(!!document.fullscreenElement);
@@ -488,7 +518,7 @@ function BottomBar({ profile, pageId, online, pcName, onPage, onMenu, update }: 
   };
   return (
     <div className="pn-bar" style={{ height: BAR }}>
-      <div className="pn-status"><span className={`pn-led ${online ? 'on' : ''}`} /><span className="pn-pc">{pcName}</span></div>
+      <div className="pn-status"><span className={`pn-led ${online ? 'on' : ''}`} /><span className="pn-pc">{pcName}</span>{via && <span className="pn-via">{via}</span>}</div>
       <div className="pn-pages">
         {profile && profile.pageDots && profile.pages.length > 1 && profile.pages.map((p) => (
           <button key={p.id} className={p.id === pageId ? 'on' : ''} onClick={() => onPage(p.id)} aria-label={p.name}>
@@ -527,7 +557,7 @@ function Setup({ onConnect, error }: { onConnect: (t: Target) => void; error?: s
       <h1>Free Touch</h1>
       {isNative ? (
         <>
-          <p>Откройте Free Touch на компьютере, нажмите «Подключить телефон» и отсканируйте QR-код.</p>
+          <p>Откройте Free Touch на компьютере, нажмите «Подключить телефон» и отсканируйте QR-код. Или подключите телефон USB-кабелем — приложение найдёт ПК само.</p>
           <button
             className="pn-btn primary big"
             onClick={async () => {

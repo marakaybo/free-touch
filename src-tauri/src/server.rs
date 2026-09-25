@@ -122,7 +122,9 @@ async fn ws_handler(
     State(ctx): State<Ctx>,
 ) -> Response {
     let token = ctx.core.settings().token;
-    let ok = q.token.as_deref() == Some(token.as_str());
+    // По USB (adb reverse) и с самого ПК соединение приходит с 127.0.0.1 — код не нужен:
+    // доступ к этому компьютеру у такого клиента уже есть.
+    let ok = q.token.as_deref() == Some(token.as_str()) || addr.ip().is_loopback();
     ws.on_upgrade(move |socket| async move {
         if ok {
             client_loop(socket, addr, ctx).await
@@ -143,7 +145,12 @@ async fn client_loop(socket: WebSocket, addr: SocketAddr, ctx: Ctx) {
     let (tx, mut rx) = mpsc::unbounded_channel::<String>();
     core.clients.lock().unwrap().insert(
         id,
-        ClientInfo { id, name: "Устройство".into(), addr: addr.ip().to_string(), tx: tx.clone() },
+        ClientInfo {
+            id,
+            name: "Устройство".into(),
+            addr: if addr.ip().is_loopback() { "USB".into() } else { addr.ip().to_string() },
+            tx: tx.clone(),
+        },
     );
     core.emit_clients();
 
@@ -179,7 +186,7 @@ async fn client_loop(socket: WebSocket, addr: SocketAddr, ctx: Ctx) {
             },
             r = rev.changed() => {
                 let st = core.settings();
-                if r.is_err() || st.token != token {
+                if r.is_err() || (st.token != token && !addr.ip().is_loopback()) {
                     let _ = sink.send(Message::Text(json!({ "t": "unauthorized" }).to_string().into())).await;
                     break;
                 }

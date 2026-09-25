@@ -36,6 +36,8 @@ pub struct Settings {
     pub obs_autodetected: bool,
     /// Проверять обновления на GitHub при запуске.
     pub auto_update: bool,
+    /// Подключать телефоны по USB-кабелю через adb.
+    pub usb_enabled: bool,
 }
 
 impl Default for Settings {
@@ -49,6 +51,7 @@ impl Default for Settings {
             preferred_ip: String::new(),
             obs_autodetected: false,
             auto_update: true,
+            usb_enabled: true,
         }
     }
 }

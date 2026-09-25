@@ -3,13 +3,15 @@ import { Ph } from '../../shared/render';
 import { api, openUrl } from '../api';
 import { REPO_URL } from './SettingsModal';
 import { useStore } from '../store';
-import { Modal, Select } from './ui';
+import { Modal, Seg, Select } from './ui';
+import { UsbPane } from './UsbPane';
 
 export function PairModal({ onClose }: { onClose: () => void }) {
   const { settings, ips, server, clients, saveSettings, setSettingsLocal, refreshIps } = useStore();
   const [qr, setQr] = useState('');
   const [copied, setCopied] = useState(false);
   const [fw, setFw] = useState('');
+  const [mode, setMode] = useState<'wifi' | 'usb'>('wifi');
 
   useEffect(() => { refreshIps(); }, [refreshIps]);
 
@@ -28,6 +30,10 @@ export function PairModal({ onClose }: { onClose: () => void }) {
 
   return (
     <Modal title="Подключить телефон" onClose={onClose} wide>
+      <div className="pair-mode">
+        <Seg value={mode} onChange={setMode} options={[{ v: 'wifi', label: 'Wi-Fi' }, { v: 'usb', label: 'USB-кабель' }]} />
+      </div>
+      {mode === 'usb' ? <UsbPane /> : (
       <div className="pair">
         <div className="pair-qr">
           {qr ? <div className="qr" dangerouslySetInnerHTML={{ __html: qr }} /> : <div className="qr empty">Нет сети</div>}
@@ -91,6 +97,7 @@ export function PairModal({ onClose }: { onClose: () => void }) {
           ><Ph name="arrows-clockwise" size={13} /> Сбросить код подключения</button>
         </div>
       </div>
+      )}
     </Modal>
   );
 }

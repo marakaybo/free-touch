@@ -124,3 +124,4 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   display: flex; flex-direction: column; gap: 12px; align-items: center; text-align: center; color: #E8EAF0; font-size: 15px;
 }
 .qr-cam-bar .pn-btn { max-width: 340px; }
+.pn-via { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: #7FA6FF; }

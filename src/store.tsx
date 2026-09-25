@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { normalizeProfile } from '../shared/defaults';
-import type { Button, ClientInfo, ObsMeta, Page, Profile, ServerStatus, Settings, States } from '../shared/types';
+import type { Button, ClientInfo, ObsMeta, Page, Profile, ServerStatus, Settings, States, UsbStatus } from '../shared/types';
 import { api, on, type Bootstrap, type NetIp } from './api';
 
 interface Ctx {
@@ -14,6 +14,7 @@ interface Ctx {
   clients: ClientInfo[];
   server: ServerStatus;
   ips: NetIp[];
+  usb: UsbStatus;
   pageId: string;
   page: Page;
   selected: string | null;
@@ -50,6 +51,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [clients, setClients] = useState<ClientInfo[]>([]);
   const [server, setServer] = useState<ServerStatus>({ running: false, port: 0, error: null });
   const [ips, setIps] = useState<NetIp[]>([]);
+  const [usb, setUsb] = useState<UsbStatus>({ enabled: false, adb: null, devices: [], error: null, installing: false });
   const [pageId, setPageId] = useState('');
   const [selected, select] = useState<string | null>(null);
   const past = useRef<{ p: Profile; key?: string; t: number }[]>([]);
@@ -74,6 +76,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setClients(b.clients);
       setServer(b.server);
       setIps(b.ips);
+      if (b.usb) setUsb(b.usb);
       setPageId(p.home);
     });
     const offs = [
@@ -85,6 +88,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       on<ObsMeta>('ft-obs', setObs),
       on<ClientInfo[]>('ft-clients', setClients),
       on<ServerStatus>('ft-server', setServer),
+      on<UsbStatus>('ft-usb', setUsb),
     ];
     return () => { offs.forEach((o) => o.then((f) => f())); };
   }, []);
@@ -203,6 +207,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     clients,
     server,
     ips,
+    usb,
     pageId: page.id,
     page,
     selected: selectedButton ? selected : null,

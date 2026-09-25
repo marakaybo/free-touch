@@ -147,6 +147,23 @@ export interface Settings {
   preferredIp: string;
   obsAutodetected: boolean;
   autoUpdate: boolean;
+  usbEnabled: boolean;
+}
+
+export interface UsbDevice {
+  serial: string;
+  /** device — готов, unauthorized — ждёт разрешения на телефоне, offline — нет связи. */
+  state: string;
+  model: string;
+  ready: boolean;
+}
+
+export interface UsbStatus {
+  enabled: boolean;
+  adb: string | null;
+  devices: UsbDevice[];
+  error: string | null;
+  installing: boolean;
 }
 
 export interface ClientInfo {
