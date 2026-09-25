@@ -28,6 +28,8 @@ interface Ctx {
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
+  /** Есть правки, которые ещё не записаны на диск и не ушли на телефоны. */
+  dirty: boolean;
   canRedo: boolean;
   saveSettings: (s: Settings) => Promise<void>;
   setSettingsLocal: (s: Settings) => void;
@@ -87,11 +89,16 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     return () => { offs.forEach((o) => o.then((f) => f())); };
   }, []);
 
+  const [dirty, setDirty] = useState(false);
   const commit = useCallback((next: Profile) => {
     profileRef.current = next;
     setProfile(next);
+    setDirty(true);
     clearTimeout(saveTimer.current);
-    saveTimer.current = window.setTimeout(() => api.saveProfile(next), 250);
+    saveTimer.current = window.setTimeout(() => {
+      saveTimer.current = undefined;
+      api.saveProfile(next).then(() => { if (profileRef.current === next) setDirty(false); });
+    }, 400);
     bump((x) => x + 1);
   }, []);
 
@@ -101,7 +108,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (saveTimer.current !== undefined && profileRef.current) {
         clearTimeout(saveTimer.current);
         saveTimer.current = undefined;
-        api.saveProfile(profileRef.current);
+        const p = profileRef.current;
+        api.saveProfile(p).then(() => { if (profileRef.current === p) setDirty(false); });
       }
     };
     window.addEventListener('blur', flush);
@@ -208,6 +216,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     undo,
     redo,
     canUndo: past.current.length > 0,
+    dirty,
     canRedo: future.current.length > 0,
     saveSettings,
     setSettingsLocal: setSettings,

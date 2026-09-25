@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Copy, Play, Trash2 } from 'lucide-react';
-import { PAGE_BACKGROUNDS, STYLE_PRESETS, suggestActive, uid, withStyle, newButton, newPage } from '../../shared/defaults';
+import { DIM_TEXT, KEY_COLORS, LIVE_STATES, PAGE_BACKGROUNDS, icon as phIcon, keyColorStyle, suggestActive, uid, withStyle, newButton, newPage } from '../../shared/defaults';
 import { BRANDS } from '../../shared/brands';
-import { ButtonFace, fillCss } from '../../shared/render';
+import { Ph, fillCss } from '../../shared/render';
 import type { Action, ActiveRule, Button, ButtonStyle, Fill, SliderTarget } from '../../shared/types';
 import { api } from '../api';
 import { useStore } from '../store';
@@ -34,7 +33,7 @@ function ButtonInspector({ b }: { b: Button }) {
           value={b.type}
           onChange={(type) => up((x) => {
             x.type = type;
-            if (type === 'slider' && !x.slider) x.slider = { target: { kind: 'master', input: '', app: '' }, vertical: x.h >= x.w, color: '#8F6BFF' };
+            if (type === 'slider' && !x.slider) x.slider = { target: { kind: 'master', input: '', app: '' }, vertical: x.h >= x.w, color: '#3D7BFF' };
           })}
           options={[{ v: 'button', label: 'Кнопка' }, { v: 'slider', label: 'Слайдер' }]}
         />
@@ -49,9 +48,9 @@ function ButtonInspector({ b }: { b: Button }) {
               updatePage((p) => { p.buttons.push(c); });
               select(c.id);
             }}
-          ><Copy size={15} /></button>
+          ><Ph name="copy" size={16} /></button>
           <button className="icon-btn danger" title="Удалить (Delete)" onClick={() => { updatePage((p) => { p.buttons = p.buttons.filter((x) => x.id !== b.id); }); select(null); }}>
-            <Trash2 size={15} />
+            <Ph name="trash" size={16} />
           </button>
         </div>
       </div>
@@ -83,28 +82,40 @@ const LABEL_VARS = [
 ];
 
 function LookTab({ b, up }: { b: Button; up: Up }) {
-  const { profile, states } = useStore();
   const s = b.style;
   const set = <K extends keyof ButtonStyle>(k: K, v: ButtonStyle[K], merge = true) => up((x) => { x.style[k] = v; }, merge ? `style.${k}` : undefined);
   const [iconOpen, setIconOpen] = useState(false);
+  const curFill = s.fill.type === 'solid' ? s.fill.color.toUpperCase() : '';
   return (
     <>
-      <Section title="Готовые стили">
-        <div className="presets">
-          {STYLE_PRESETS.map((p) => {
-            const demo: Button = { ...b, type: 'button', w: 1, h: 1, active: null, style: { ...s, ...p.style } };
-            return (
-              <button key={p.id} className="preset" title={p.name} onClick={() => up((x) => { Object.assign(x.style, p.style); })}>
-                <div className="ft-cell"><ButtonFace button={demo} states={states} accent={profile.accent} /></div>
-                <span>{p.name}</span>
-              </button>
-            );
-          })}
+      <Section title="Корпус">
+        <div className="caps">
+          {KEY_COLORS.map((c) => (
+            <button
+              key={c.id}
+              className={`cap ${curFill === c.fill ? 'on' : ''}`}
+              title={`${c.name} ${c.fill}`}
+              onClick={() => up((x) => { Object.assign(x.style, keyColorStyle(c)); })}
+            >
+              <span style={{ background: c.fill }} />
+              <small>{c.name}</small>
+            </button>
+          ))}
         </div>
+        <FillEditor fill={s.fill} onChange={(f) => set('fill', f)} />
+        <Field label="Форма">
+          <Seg value={s.shadow} onChange={(v) => set('shadow', v, false)} options={[{ v: 'key', label: 'Клавиша' }, { v: 'flat', label: 'Плоская' }]} />
+        </Field>
+        <Field label="При нажатии">
+          <Seg value={s.press} onChange={(v) => set('press', v, false)} options={[{ v: 'press', label: 'Уходит вниз' }, { v: 'none', label: 'Без движения' }]} />
+        </Field>
+        <Field label="Скругление"><Range value={s.radius} min={0} max={30} onChange={(v) => set('radius', v)} /></Field>
+        <Field label="Рамка"><Range value={s.borderWidth} min={0} max={6} onChange={(v) => set('borderWidth', v)} /></Field>
+        {s.borderWidth > 0 && <Color compact value={s.borderColor} onChange={(v) => set('borderColor', v)} />}
       </Section>
 
-      <Section title="Надпись">
-        <Text value={s.label} onChange={(v) => set('label', v)} placeholder="Текст на кнопке" />
+      <Section title="Подпись">
+        <Text value={s.label} onChange={(v) => set('label', v)} placeholder="Текст на клавише" />
         <div className="chips">
           {LABEL_VARS.map((x) => (
             <button key={x.v} className="chip" title={`Вставить ${x.v}`} onClick={() => set('label', (s.label + ' ' + x.v).trim(), false)}>{x.t}</button>
@@ -112,23 +123,22 @@ function LookTab({ b, up }: { b: Button; up: Up }) {
         </div>
         <Seg value={s.labelPos} onChange={(v) => set('labelPos', v, false)} options={[{ v: 'top', label: 'Сверху' }, { v: 'center', label: 'По центру' }, { v: 'bottom', label: 'Снизу' }, { v: 'hidden', label: 'Скрыть' }]} />
         <Seg value={s.font} onChange={(v) => set('font', v, false)} options={[
-          { v: 'onest', label: <span style={{ fontFamily: 'Onest Variable' }}>Onest</span> },
-          { v: 'unbounded', label: <span style={{ fontFamily: 'Unbounded Variable' }}>Unbounded</span> },
-          { v: 'mono', label: <span style={{ fontFamily: 'JetBrains Mono Variable' }}>Mono</span> },
+          { v: 'condensed', label: <span style={{ fontFamily: "'IBM Plex Sans Condensed'" }}>Узкий</span> },
+          { v: 'sans', label: <span style={{ fontFamily: "'IBM Plex Sans'" }}>Обычный</span> },
+          { v: 'mono', label: <span style={{ fontFamily: "'IBM Plex Mono'" }}>Моно</span> },
         ]} />
         <Field label="Размер"><Range value={s.fontSize} min={6} max={40} onChange={(v) => set('fontSize', v)} /></Field>
-        <div className="two">
-          <Color compact value={s.textColor} onChange={(v) => set('textColor', v)} />
-          <Toggle checked={s.bold} onChange={(v) => set('bold', v, false)} label="Жирный" />
-        </div>
+        <Field label="Цвет"><Color compact value={s.textColor} onChange={(v) => set('textColor', v)} /></Field>
+        <Toggle checked={s.bold} onChange={(v) => set('bold', v, false)} label="Полужирная" />
       </Section>
 
       <Section title="Значок" right={<button className="btn ghost sm" onClick={() => setIconOpen(!iconOpen)}>{iconOpen ? 'Свернуть' : 'Выбрать'}</button>}>
+        {!iconOpen && s.icon.kind === 'none' && <span className="fld-hint">Без значка — только подпись.</span>}
         {iconOpen && <IconPicker value={s.icon} onChange={(v) => set('icon', v, false)} />}
         {s.icon.kind !== 'none' && (
           <>
             <Field label="Размер"><Range value={s.iconSize} min={10} max={90} onChange={(v) => set('iconSize', v)} /></Field>
-            {s.icon.kind !== 'emoji' && s.icon.kind !== 'image' && <Color value={s.iconColor} onChange={(v) => set('iconColor', v)} />}
+            {s.icon.kind !== 'emoji' && s.icon.kind !== 'image' && <Field label="Цвет"><Color compact value={s.iconColor} onChange={(v) => set('iconColor', v)} /></Field>}
             {s.icon.kind === 'brand' && BRANDS[s.icon.name] && (
               <button className="btn ghost sm" onClick={() => set('iconColor', BRANDS[(s.icon as { name: string }).name].hex, false)}>
                 <span className="brand-dot" style={{ background: BRANDS[s.icon.name].hex }} /> Фирменный цвет {BRANDS[s.icon.name].title}
@@ -136,23 +146,6 @@ function LookTab({ b, up }: { b: Button; up: Up }) {
             )}
           </>
         )}
-      </Section>
-
-      <Section title="Фон">
-        <FillEditor fill={s.fill} onChange={(f) => set('fill', f)} />
-      </Section>
-
-      <Section title="Форма и эффекты">
-        <Field label="Скругление"><Range value={s.radius} min={0} max={50} onChange={(v) => set('radius', v)} /></Field>
-        <Field label="Рамка"><Range value={s.borderWidth} min={0} max={8} onChange={(v) => set('borderWidth', v)} /></Field>
-        {s.borderWidth > 0 && <Color value={s.borderColor} onChange={(v) => set('borderColor', v)} />}
-        <Field label="Тень">
-          <Seg value={s.shadow} onChange={(v) => set('shadow', v, false)} options={[{ v: 'none', label: 'Нет' }, { v: 'soft', label: 'Мягкая' }, { v: 'lift', label: 'Объём' }, { v: 'glow', label: 'Свечение' }]} />
-        </Field>
-        {s.shadow === 'glow' && <Color value={s.glowColor} onChange={(v) => set('glowColor', v)} />}
-        <Field label="Нажатие">
-          <Seg value={s.press} onChange={(v) => set('press', v, false)} options={[{ v: 'scale', label: 'Вдавить' }, { v: 'pop', label: 'Выпрыгнуть' }, { v: 'ripple', label: 'Волна' }, { v: 'none', label: 'Нет' }]} />
-        </Field>
       </Section>
     </>
   );
@@ -217,7 +210,7 @@ function ActionsTab({ b, up }: { b: Button; up: Up }) {
             setResult(errs.length ? errs.join('\n') : 'Выполнено');
             setTimeout(() => setResult(null), 2500);
           }}
-        ><Play size={14} /> Проверить на этом ПК</button>
+        ><Ph name="play" size={14} /> Проверить на этом ПК</button>
       )}
       {result && <div className={`note ${result === 'Выполнено' ? 'ok' : 'bad'}`}>{result}</div>}
     </>
@@ -269,7 +262,6 @@ function SliderTab({ b, up }: { b: Button; up: Up }) {
       </Section>
       <Section title="Вид">
         <Seg value={sl.vertical ? 'v' : 'h'} onChange={(v) => up((x) => { x.slider!.vertical = v === 'v'; })} options={[{ v: 'v', label: 'Вертикальный' }, { v: 'h', label: 'Горизонтальный' }]} />
-        <Field label="Цвет полосы"><Color value={sl.color} onChange={(color) => up((x) => { x.slider!.color = color; }, 'slcolor')} /></Field>
       </Section>
     </>
   );
@@ -284,8 +276,8 @@ function ActiveTab({ b, up }: { b: Button; up: Up }) {
     return (
       <>
         <div className="empty">
-          Кнопка может менять вид сама: подсвечиваться, когда сцена в эфире, краснеть, когда микрофон выключен.
-          Для действий OBS и звука подсветка настраивается сама, когда вы их добавляете.
+          Клавиша может показывать состояние: зажечь светодиод, когда сцена в эфире, погаснуть, когда микрофон выключен.
+          Для действий OBS и звука это настраивается само, когда вы их добавляете.
         </div>
         <button className="btn primary wide" onClick={() => up((x) => {
           x.active = (x.actions.map(suggestActive).find(Boolean) as ActiveRule | undefined) ?? { state: 'obs.streaming', equals: '', style: {}, dot: true };
@@ -310,16 +302,17 @@ function ActiveTab({ b, up }: { b: Button; up: Up }) {
         </Field>
       </Section>
       <Section title="Как выглядит">
-        <Toggle checked={rule.dot} onChange={(v) => setRule((r) => { r.dot = v; })} label="Точка-индикатор в углу" />
-        <Toggle checked={!!st.fill} onChange={(v) => setSt('fill', v ? { type: 'solid', color: '#E5484D' } as Fill : undefined)} label="Другой фон" />
+        <Toggle checked={rule.dot} onChange={(v) => setRule((r) => { r.dot = v; })} label="Светодиод" />
+        {rule.dot && <span className="fld-hint">{LIVE_STATES.includes(rule.state) ? 'Для эфира и записи светодиод красный.' : 'Горит синим, пока условие выполняется.'}</span>}
+        <Toggle checked={!!st.fill} onChange={(v) => setSt('fill', v ? { type: 'solid', color: '#353B44' } as Fill : undefined)} label="Другой цвет корпуса" />
         {st.fill && <FillEditor fill={st.fill} onChange={(f) => setSt('fill', f)} allowImage={false} />}
-        <Toggle checked={st.textColor !== undefined} onChange={(v) => { setSt('textColor', v ? '#FFFFFF' : undefined); setSt('iconColor', v ? '#FFFFFF' : undefined); }} label="Другой цвет текста и значка" />
-        {st.textColor !== undefined && <Color value={st.textColor} onChange={(c) => { setSt('textColor', c); setSt('iconColor', c); }} />}
-        <Toggle checked={st.label !== undefined} onChange={(v) => setSt('label', v ? b.style.label : undefined)} label="Другая надпись" />
+        <Toggle checked={st.textColor !== undefined} onChange={(v) => { setSt('textColor', v ? DIM_TEXT : undefined); setSt('iconColor', v ? DIM_TEXT : undefined); }} label="Другой цвет подписи и значка" />
+        {st.textColor !== undefined && <Color compact value={st.textColor} onChange={(c) => { setSt('textColor', c); setSt('iconColor', c); }} />}
+        <Toggle checked={st.label !== undefined} onChange={(v) => setSt('label', v ? b.style.label : undefined)} label="Другая подпись" />
         {st.label !== undefined && <Text value={st.label} onChange={(v) => setSt('label', v)} />}
         <Toggle checked={st.icon !== undefined} onChange={(v) => setSt('icon', v ? b.style.icon : undefined)} label="Другой значок" />
         {st.icon !== undefined && <IconPicker value={st.icon} onChange={(i) => setSt('icon', i)} />}
-        {Object.keys(st).length === 0 && <span className="fld-hint">Без своих настроек вокруг кнопки появится цветное кольцо.</span>}
+        {Object.keys(st).length === 0 && !rule.dot && <span className="fld-hint">Без своих настроек подпись и значок станут ярче.</span>}
       </Section>
     </>
   );
@@ -348,7 +341,7 @@ function PageInspector() {
     ];
     if (mic) extra.push([mic, 'Mic', { type: 'obs', op: 'mute', mode: 'toggle', scene: '', input: mic, source: '', collection: '' }]);
     for (const [label, icon, a] of extra) {
-      list.push(newButton(0, 0, { ...placeFix(i++, cols), style: withStyle({ label, icon: { kind: 'lucide', name: icon } }), actions: [a], active: suggestActive(a) }));
+      list.push(newButton(0, 0, { ...placeFix(i++, cols), style: withStyle({ label, icon: phIcon(icon) }), actions: [a], active: suggestActive(a) }));
     }
     p.rows = Math.max(2, Math.ceil(list.length / cols));
     p.buttons = list;
@@ -366,7 +359,7 @@ function PageInspector() {
             <Field label="Столбцы"><Num value={page.cols} min={Math.max(1, maxX)} max={12} onChange={(v) => updatePage((p) => { p.cols = v; })} /></Field>
             <Field label="Строки"><Num value={page.rows} min={Math.max(1, maxY)} max={10} onChange={(v) => updatePage((p) => { p.rows = v; })} /></Field>
           </div>
-          <Field label="Расстояние между кнопками"><Range value={page.gap} min={0} max={32} suffix=" px" onChange={(v) => updatePage((p) => { p.gap = v; }, 'pgap')} /></Field>
+          <Field label="Зазор между клавишами"><Range value={page.gap} min={0} max={32} suffix=" px" onChange={(v) => updatePage((p) => { p.gap = v; }, 'pgap')} /></Field>
           <Toggle checked={profile.home === page.id} onChange={(v) => v && update((p) => { p.home = page.id; })} label="Открывать первой (главная)" />
         </Section>
         <Section title="Фон страницы">
@@ -378,8 +371,7 @@ function PageInspector() {
           <FillEditor fill={page.background} onChange={(f) => updatePage((p) => { p.background = f; }, 'pbg')} />
         </Section>
         <Section title="Весь пульт">
-          <Field label="Цвет выделения"><Color value={profile.accent} onChange={(v) => update((p) => { p.accent = v; }, 'accent')} /></Field>
-          <Toggle checked={profile.pageDots} onChange={(v) => update((p) => { p.pageDots = v; })} label="Точки страниц внизу пульта" />
+          <Toggle checked={profile.pageDots} onChange={(v) => update((p) => { p.pageDots = v; })} label="Индикатор страниц внизу пульта" />
           <Toggle checked={profile.keepAwake} onChange={(v) => update((p) => { p.keepAwake = v; })} label="Не гасить экран телефона" />
         </Section>
         <Section title="Быстрый старт">
@@ -387,7 +379,7 @@ function PageInspector() {
             Страница со всеми сценами OBS
           </button>
           <span className="fld-hint">
-            {obs.connected ? `Сцен в OBS: ${obs.scenes.length}. Кнопки сами подсветятся, когда сцена в эфире.` : 'Подключите OBS в настройках, чтобы собрать страницу из его сцен.'}
+            {obs.connected ? `Сцен в OBS: ${obs.scenes.length}. У клавиш загорится светодиод, когда сцена в эфире.` : 'Подключите OBS в настройках, чтобы собрать страницу из его сцен.'}
           </span>
         </Section>
       </div>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import NoSleep from 'nosleep.js';
 import { normalizeProfile } from '../shared/defaults';
-import { ButtonFace, SliderFace, cellStyle, fillCss, sliderStateKey, usesClock } from '../shared/render';
+import { ButtonFace, Ph, SliderFace, cellStyle, fillCss, sliderStateKey, usesClock } from '../shared/render';
 import type { Button, Page, Profile, States } from '../shared/types';
 
 // ---------- подключение ----------
@@ -195,11 +195,10 @@ export function App() {
   }
 
   return (
-    <div className="pn-root" style={page ? fillCss(page.background) : undefined}>
+    <div className={`pn-root ${conn === 'online' ? '' : 'is-offline'}`} style={page ? fillCss(page.background) : undefined}>
       {page && profile ? (
         <PageView
           page={page}
-          profile={profile}
           states={states}
           send={send}
           onSwipe={(dir) => profile.pages.length > 1 && goto(dir > 0 ? '@next' : '@prev')}
@@ -241,9 +240,8 @@ function useViewport() {
 const BAR = 34;
 const PAD = 14;
 
-function PageView({ page, profile, states, send, onSwipe }: {
+function PageView({ page, states, send, onSwipe }: {
   page: Page;
-  profile: Profile;
   states: States;
   send: (m: object) => void;
   onSwipe: (dir: number) => void;
@@ -290,7 +288,7 @@ function PageView({ page, profile, states, send, onSwipe }: {
     >
       {rotateHint && (
         <button className="pn-rotate" onClick={() => setHintOff(true)}>
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M3 12a9 9 0 0 1 3-6.7M21 12a9 9 0 0 1-3 6.7" /></svg>
+          <Ph name="device-rotate" size={17} />
           Поверните телефон — кнопки станут крупнее
         </button>
       )}
@@ -299,7 +297,7 @@ function PageView({ page, profile, states, send, onSwipe }: {
           b.type === 'slider' ? (
             <SliderCell key={b.id} b={b} page={page} states={states} send={send} />
           ) : (
-            <ButtonCell key={b.id} b={b} page={page} states={states} send={send} accent={profile.accent} now={now} />
+            <ButtonCell key={b.id} b={b} page={page} states={states} send={send} now={now} />
           ),
         )}
       </div>
@@ -309,11 +307,10 @@ function PageView({ page, profile, states, send, onSwipe }: {
 
 const LONG_MS = 500;
 
-function ButtonCell({ b, page, states, send, accent, now }: {
-  b: Button; page: Page; states: States; send: (m: object) => void; accent: string; now: Date;
+function ButtonCell({ b, page, states, send, now }: {
+  b: Button; page: Page; states: States; send: (m: object) => void; now: Date;
 }) {
   const [pressed, setPressed] = useState(false);
-  const [pulse, setPulse] = useState(0);
   const down = useRef(false);
   const longTimer = useRef<number | undefined>(undefined);
   const longFired = useRef(false);
@@ -343,15 +340,13 @@ function ButtonCell({ b, page, states, send, accent, now }: {
         e.currentTarget.setPointerCapture(e.pointerId);
         down.current = true;
         setPressed(true);
-        setPulse((p) => p + 1);
         vibrate(12);
         if (hasLong) {
           longFired.current = false;
           longTimer.current = window.setTimeout(() => {
             longFired.current = true;
             vibrate([20, 40, 30]);
-            setPulse((p) => p + 1);
-            msg('long');
+                msg('long');
           }, LONG_MS);
         } else {
           msg('down');
@@ -361,7 +356,7 @@ function ButtonCell({ b, page, states, send, accent, now }: {
       onPointerCancel={() => release(true)}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <ButtonFace button={b} states={states} accent={accent} pressed={pressed} pulse={pulse} now={now} />
+      <ButtonFace button={b} states={states} pressed={pressed} now={now} />
       {hasLong && <span className="ft-long-mark" />}
     </div>
   );
@@ -371,12 +366,15 @@ function SliderCell({ b, page, states, send }: { b: Button; page: Page; states: 
   const key = sliderStateKey(b);
   const remote = Number(states[key] ?? 0);
   const [local, setLocal] = useState<number | null>(null);
+  const [dragging, setDragging] = useState(false);
   const last = useRef(0);
   const ref = useRef<HTMLDivElement>(null);
   const vertical = b.slider?.vertical ?? true;
 
   const valueAt = (e: React.PointerEvent) => {
-    const r = ref.current!.getBoundingClientRect();
+    // Значение считаем по дорожке фейдера, а не по всей ячейке — так палец совпадает с колпачком.
+    const track = ref.current!.querySelector('.ft-fader-track') ?? ref.current!;
+    const r = track.getBoundingClientRect();
     const v = vertical ? (r.bottom - e.clientY) / r.height : (e.clientX - r.left) / r.width;
     return Math.round(Math.max(0, Math.min(1, v)) * 100);
   };
@@ -402,18 +400,20 @@ function SliderCell({ b, page, states, send }: { b: Button; page: Page; states: 
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
         ref.current!.dataset.drag = '1';
+        setDragging(true);
         vibrate(8);
         push(valueAt(e), true);
       }}
       onPointerMove={(e) => { if (ref.current?.dataset.drag) push(valueAt(e)); }}
       onPointerUp={(e) => {
         delete ref.current!.dataset.drag;
+        setDragging(false);
         push(valueAt(e), true);
         setTimeout(() => setLocal(null), 1200);
       }}
-      onPointerCancel={() => { delete ref.current!.dataset.drag; setLocal(null); }}
+      onPointerCancel={() => { delete ref.current!.dataset.drag; setDragging(false); setLocal(null); }}
     >
-      <SliderFace button={b} states={states} value={local ?? remote} />
+      <SliderFace button={b} states={states} value={local ?? remote} dragging={dragging} />
     </div>
   );
 }
@@ -437,8 +437,8 @@ function BottomBar({ profile, pageId, online, pcName, onPage }: {
   };
   return (
     <div className="pn-bar" style={{ height: BAR }}>
-      <div className="pn-status"><span className={`pn-led ${online ? 'on' : ''}`} />{pcName}</div>
-      <div className="pn-dots">
+      <div className="pn-status"><span className={`pn-led ${online ? 'on' : ''}`} /><span className="pn-pc">{pcName}</span></div>
+      <div className="pn-pages">
         {profile && profile.pageDots && profile.pages.length > 1 && profile.pages.map((p) => (
           <button key={p.id} className={p.id === pageId ? 'on' : ''} onClick={() => onPage(p.id)} aria-label={p.name}>
             <span />
@@ -446,11 +446,7 @@ function BottomBar({ profile, pageId, online, pcName, onPage }: {
         ))}
       </div>
       <button className="pn-fs" onClick={toggleFs} aria-label="Во весь экран">
-        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          {fs
-            ? <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
-            : <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />}
-        </svg>
+        <Ph name={fs ? 'corners-in' : 'corners-out'} size={18} />
       </button>
     </div>
   );
@@ -468,7 +464,7 @@ function Setup({ onConnect, error }: { onConnect: (t: Target) => void; error?: s
   };
   return (
     <div className="pn-setup">
-      <img src="./icon-192.png" alt="" width="84" height="84" />
+      <img src="./icon-192.png" alt="" width="72" height="72" />
       <h1>Free Touch</h1>
       <p>Откройте Free Touch на компьютере, нажмите «Подключить телефон» и отсканируйте QR-код камерой телефона.</p>
       {!servedByPc && (

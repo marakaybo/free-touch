@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Download, RefreshCw } from 'lucide-react';
+import { Ph } from '../shared/render';
 import type { Update } from '@tauri-apps/plugin-updater';
 import { inTauri } from './api';
 import { Modal } from './components/ui';
@@ -131,7 +131,7 @@ export function UpdateModal({ update, onClose }: { update: Update; onClose: (ski
             <button className="btn ghost" onClick={() => onClose(true)}>Пропустить версию</button>
             <button className="btn" onClick={() => onClose(false)}>Позже</button>
             <button className="btn primary" onClick={start}>
-              {stage === 'error' ? <><RefreshCw size={14} /> Ещё раз</> : <><Download size={14} /> Обновить</>}
+              {stage === 'error' ? <><Ph name="arrows-clockwise" size={14} /> Ещё раз</> : <><Ph name="download-simple" size={14} /> Обновить</>}
             </button>
           </>
         ) : (

@@ -1,0 +1,29 @@
+/* Шрифты Free Touch: IBM Plex (интерфейс, подписи клавиш, значения) и значки Phosphor. */
+@import '@fontsource/ibm-plex-sans/400.css';
+@import '@fontsource/ibm-plex-sans/500.css';
+@import '@fontsource/ibm-plex-sans/600.css';
+@import '@fontsource/ibm-plex-sans-condensed/400.css';
+@import '@fontsource/ibm-plex-sans-condensed/500.css';
+@import '@fontsource/ibm-plex-mono/400.css';
+@import '@fontsource/ibm-plex-mono/500.css';
+
+@font-face {
+  font-family: 'Phosphor-Fill';
+  src: url('./fonts/Phosphor-Fill.woff2') format('woff2');
+  font-display: block;
+}
+@font-face {
+  font-family: 'Phosphor';
+  src: url('./fonts/Phosphor.woff2') format('woff2');
+  font-display: block;
+}
+.ph-i {
+  display: inline-grid;
+  place-items: center;
+  line-height: 1;
+  font-style: normal;
+  font-weight: normal;
+  speak: never;
+  -webkit-font-smoothing: antialiased;
+  flex: none;
+}

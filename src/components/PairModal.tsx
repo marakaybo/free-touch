@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Copy, RefreshCw } from 'lucide-react';
+import { Ph } from '../../shared/render';
 import { api } from '../api';
 import { useStore } from '../store';
 import { Modal, Select } from './ui';
@@ -30,7 +30,7 @@ export function PairModal({ onClose }: { onClose: () => void }) {
       <div className="pair">
         <div className="pair-qr">
           {qr ? <div className="qr" dangerouslySetInnerHTML={{ __html: qr }} /> : <div className="qr empty">Нет сети</div>}
-          {clients.length > 0 && <div className="pair-ok"><Check size={15} /> Подключено: {clients.map((c) => c.name).join(', ')}</div>}
+          {clients.length > 0 && <div className="pair-ok"><Ph name="check" size={15} /> Подключено: {clients.map((c) => c.name).join(', ')}</div>}
         </div>
         <div className="pair-info">
           <ol className="steps">
@@ -41,7 +41,7 @@ export function PairModal({ onClose }: { onClose: () => void }) {
           <div className="pair-link">
             <code>{url || '—'}</code>
             <button className="icon-btn" disabled={!url} onClick={() => { navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); }} title="Скопировать">
-              {copied ? <Check size={15} /> : <Copy size={15} />}
+              {copied ? <Ph name="check" size={15} /> : <Ph name="copy" size={15} />}
             </button>
           </div>
           <div className="pair-net">
@@ -83,7 +83,7 @@ export function PairModal({ onClose }: { onClose: () => void }) {
               const s = await api.regenerateToken();
               setSettingsLocal(s);
             }}
-          ><RefreshCw size={13} /> Сбросить код подключения</button>
+          ><Ph name="arrows-clockwise" size={13} /> Сбросить код подключения</button>
         </div>
       </div>
     </Modal>

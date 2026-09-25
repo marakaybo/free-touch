@@ -1,21 +1,23 @@
 // Общая модель данных пульта: её понимают редактор, телефон и сервер на Rust.
 
+/** Заливка плоская: цвет или картинка. Градиентов нет — клавиши как пластик. */
 export type Fill =
   | { type: 'solid'; color: string }
-  | { type: 'gradient'; from: string; to: string; angle: number }
   | { type: 'image'; src: string; dim: number };
 
 export type IconRef =
   | { kind: 'none' }
   | { kind: 'emoji'; value: string }
-  | { kind: 'lucide'; name: string }
+  | { kind: 'icon'; name: string }
   | { kind: 'brand'; name: string }
   | { kind: 'image'; src: string };
 
-export type FontId = 'onest' | 'unbounded' | 'mono';
+export type FontId = 'condensed' | 'sans' | 'mono';
 export type LabelPos = 'top' | 'center' | 'bottom' | 'hidden';
-export type PressAnim = 'scale' | 'pop' | 'ripple' | 'none';
-export type Shadow = 'none' | 'soft' | 'lift' | 'glow';
+/** press — клавиша уходит вниз, none — без движения. */
+export type PressAnim = 'press' | 'none';
+/** key — объёмная клавиша (блик сверху, грань снизу), flat — плоская плашка. */
+export type Shadow = 'key' | 'flat';
 
 export interface ButtonStyle {
   fill: Fill;
@@ -24,7 +26,6 @@ export interface ButtonStyle {
   borderWidth: number;
   borderColor: string;
   shadow: Shadow;
-  glowColor: string;
   label: string;
   labelPos: LabelPos;
   font: FontId;
@@ -82,7 +83,7 @@ export interface ActiveRule {
   equals: string;
   /** Что поменять во внешнем виде, пока условие выполняется. */
   style: Partial<ButtonStyle>;
-  /** Маленькая точка-индикатор в углу. */
+  /** Светодиод на клавише. Для эфира и записи он красный, для остального — синий. */
   dot: boolean;
 }
 

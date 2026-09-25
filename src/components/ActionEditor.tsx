@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { ArrowDown, ArrowUp, AppWindow, Clock, Command, FileText, Keyboard, Layers, Music, Radio, Trash2, Volume2 } from 'lucide-react';
+import { Ph } from '../../shared/render';
 import { defaultAction } from '../../shared/defaults';
 import type { Action, ObsOp } from '../../shared/types';
 import { api, pickFile } from '../api';
@@ -8,15 +8,15 @@ import { HotkeyInput } from './HotkeyInput';
 import { Field, Num, Range, Select, Seg, Text, Toggle } from './ui';
 
 export const ACTION_TYPES: { type: Action['type']; name: string; icon: ReactNode; hint: string }[] = [
-  { type: 'obs', name: 'OBS', icon: <Radio size={16} />, hint: 'Сцены, стрим, запись, микрофон' },
-  { type: 'hotkey', name: 'Сочетание клавиш', icon: <Keyboard size={16} />, hint: 'Ctrl+Shift+M, F13…' },
-  { type: 'open', name: 'Открыть', icon: <AppWindow size={16} />, hint: 'Программу, файл, сайт' },
-  { type: 'volume', name: 'Громкость', icon: <Volume2 size={16} />, hint: 'Общая или отдельной программы' },
-  { type: 'media', name: 'Медиа', icon: <Music size={16} />, hint: 'Пауза, следующий трек' },
-  { type: 'text', name: 'Напечатать текст', icon: <FileText size={16} />, hint: 'Вставит текст в активное окно' },
-  { type: 'page', name: 'Перейти на страницу', icon: <Layers size={16} />, hint: 'Навигация по пульту' },
-  { type: 'command', name: 'Команда', icon: <Command size={16} />, hint: 'Команда cmd без окна' },
-  { type: 'delay', name: 'Пауза', icon: <Clock size={16} />, hint: 'Подождать между действиями' },
+  { type: 'obs', name: 'OBS', icon: <Ph name="broadcast" size={16} />, hint: 'Сцены, стрим, запись, микрофон' },
+  { type: 'hotkey', name: 'Сочетание клавиш', icon: <Ph name="keyboard" size={16} />, hint: 'Ctrl+Shift+M, F13…' },
+  { type: 'open', name: 'Открыть', icon: <Ph name="app-window" size={16} />, hint: 'Программу, файл, сайт' },
+  { type: 'volume', name: 'Громкость', icon: <Ph name="speaker-high" size={16} />, hint: 'Общая или отдельной программы' },
+  { type: 'media', name: 'Медиа', icon: <Ph name="music-notes" size={16} />, hint: 'Пауза, следующий трек' },
+  { type: 'text', name: 'Напечатать текст', icon: <Ph name="text-t" size={16} />, hint: 'Вставит текст в активное окно' },
+  { type: 'page', name: 'Перейти на страницу', icon: <Ph name="stack" size={16} />, hint: 'Навигация по пульту' },
+  { type: 'command', name: 'Команда', icon: <Ph name="terminal-window" size={16} />, hint: 'Команда cmd без окна' },
+  { type: 'delay', name: 'Пауза', icon: <Ph name="clock" size={16} />, hint: 'Подождать между действиями' },
 ];
 
 const OBS_OPS: { v: ObsOp; label: string }[] = [
@@ -43,9 +43,9 @@ export function ActionCard({ action, index, count, onChange, onRemove, onMove }:
         <span className="act-ic">{meta.icon}</span>
         <span className="act-name">{meta.name}</span>
         <span className="act-tools">
-          <button className="icon-btn" disabled={index === 0} onClick={() => onMove(-1)} title="Выше"><ArrowUp size={14} /></button>
-          <button className="icon-btn" disabled={index === count - 1} onClick={() => onMove(1)} title="Ниже"><ArrowDown size={14} /></button>
-          <button className="icon-btn danger" onClick={onRemove} title="Удалить"><Trash2 size={14} /></button>
+          <button className="icon-btn" disabled={index === 0} onClick={() => onMove(-1)} title="Выше"><Ph name="arrow-up" size={14} /></button>
+          <button className="icon-btn" disabled={index === count - 1} onClick={() => onMove(1)} title="Ниже"><Ph name="arrow-down" size={14} /></button>
+          <button className="icon-btn danger" onClick={onRemove} title="Удалить"><Ph name="trash" size={14} /></button>
         </span>
       </div>
       <div className="act-body"><ActionFields action={action} onChange={onChange} /></div>

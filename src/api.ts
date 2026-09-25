@@ -85,7 +85,7 @@ function mock(cmd: string, args?: Record<string, unknown>): unknown {
       return {
         version: 'dev', pc: 'DEV-PC', profile: JSON.parse(localStorage.getItem('mock.profile') || 'null'),
         settings: { port: 7474, token: 'devtoken0000000000000000', obs: { enabled: true, host: '127.0.0.1', port: 4455, password: '' }, startMinimized: false, closeToTray: true, preferredIp: '', obsAutodetected: true },
-        states: { 'obs.connected': true, 'obs.scene': 'Игра', 'system.volume': 42, 'system.cpu': 17, 'system.ram': 48 },
+        states: { 'obs.connected': true, 'obs.scene': 'Игра', 'obs.streaming': true, 'system.muted': true, 'system.volume': 42, 'system.cpu': 17, 'system.ram': 48 },
         server: { running: true, port: 7474, error: null },
         obs: { connected: true, error: null, version: '5.6', scenes: ['Начало', 'Игра', 'Отойду', 'Конец'], collections: ['Хоррор', 'Minecraft'], audioInputs: ['Микрофон', 'Звук рабочего стола'], inputs: ['Микрофон', 'Звук рабочего стола', 'Аватар'], sources: { Игра: ['Аватар', 'Микрофон'] } },
         clients: [{ id: 1, name: 'Pixel 7', addr: '192.168.1.40' }],

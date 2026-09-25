@@ -1,19 +1,24 @@
 import { useMemo, useState } from 'react';
-import { icons as lucideIcons } from 'lucide-react';
 import { BRANDS } from '../../shared/brands';
-import { IconView } from '../../shared/render';
+import { PH } from '../../shared/phosphor';
+import { IconView, Ph } from '../../shared/render';
+import { PH_TAGS } from '../phosphor-tags';
 import type { IconRef } from '../../shared/types';
 import { Seg, loadImage } from './ui';
 
 const EMOJI = '🎮 🎧 🎤 🎙️ 🔇 🔊 📷 🎬 📺 🎵 🎶 ⏯️ ⏭️ ⏮️ ⏸️ ⏺️ 🔴 🟢 🟡 🔵 ⚫ ⚪ ⭐ 🔥 💥 ✨ ⚡ 💡 🚀 🎯 🏆 👑 💎 ❤️ 💜 💙 💚 🧡 🖤 👍 👎 👏 🙌 🤝 😂 😎 😱 🤯 😴 🥳 💀 👻 🤖 👾 🎃 🐱 🐶 🦊 🐸 🍕 ☕ 🍿 🌙 ☀️ 🌈 ❄️ 💬 📢 🔔 🔕 ⏰ ⏱️ 📌 🔒 🔓 🛑 ⛔ ✅ ❌ ❓ ❗ ➕ ➖ 🔁 🔀 💻 🖥️ ⌨️ 🖱️ 📱 🗂️ 📁 🗑️ ⚙️ 🛠️ 🧰 🎲 🃏 🧩 🪄'.split(' ');
 
 export function IconPicker({ value, onChange }: { value: IconRef; onChange: (i: IconRef) => void }) {
-  const [tab, setTab] = useState<'lucide' | 'brand' | 'emoji' | 'image'>(value.kind === 'none' ? 'lucide' : (value.kind as 'lucide'));
+  const [tab, setTab] = useState<'icon' | 'brand' | 'emoji' | 'image'>(value.kind === 'none' ? 'icon' : value.kind);
   const [q, setQ] = useState('');
-  const names = useMemo(() => Object.keys(lucideIcons), []);
+  const names = useMemo(() => Object.keys(PH), []);
   const found = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return (s ? names.filter((n) => n.toLowerCase().includes(s)) : names).slice(0, 180);
+    if (!s) return names.slice(0, 180);
+    // Сначала совпадения по имени, потом по словам-тегам (play, stream, mute…).
+    const byName = names.filter((n) => n.includes(s));
+    const byTag = names.filter((n) => !n.includes(s) && PH_TAGS[n]?.includes(s));
+    return [...byName, ...byTag].slice(0, 180);
   }, [q, names]);
   const brandList = useMemo(() => {
     const s = q.trim().toLowerCase();
@@ -27,21 +32,21 @@ export function IconPicker({ value, onChange }: { value: IconRef; onChange: (i: 
           value={tab}
           onChange={setTab}
           options={[
-            { v: 'lucide', label: 'Значки' },
+            { v: 'icon', label: 'Значки' },
             { v: 'brand', label: 'Бренды' },
             { v: 'emoji', label: 'Эмодзи' },
             { v: 'image', label: 'Своя' },
           ]}
         />
-        <button type="button" className="btn ghost sm" onClick={() => onChange({ kind: 'none' })} disabled={value.kind === 'none'}>Убрать</button>
+        <button type="button" className="icon-btn" onClick={() => onChange({ kind: 'none' })} title="Убрать значок"><Ph name="prohibit" size={16} /></button>
       </div>
-      {(tab === 'lucide' || tab === 'brand') && (
-        <input className="inp" placeholder={tab === 'lucide' ? 'Поиск по-английски: mic, play, camera…' : 'Поиск: discord, obs…'} value={q} onChange={(e) => setQ(e.target.value)} />
+      {(tab === 'icon' || tab === 'brand') && (
+        <input className="inp" placeholder={tab === 'icon' ? 'Поиск по-английски: mic, play, camera' : 'Поиск: discord, obs'} value={q} onChange={(e) => setQ(e.target.value)} />
       )}
       <div className="ipk-grid">
-        {tab === 'lucide' && found.map((n) => (
-          <button key={n} type="button" title={n} className={value.kind === 'lucide' && value.name === n ? 'on' : ''} onClick={() => onChange({ kind: 'lucide', name: n })}>
-            <IconView icon={{ kind: 'lucide', name: n }} color="currentColor" size="20px" />
+        {tab === 'icon' && found.map((n) => (
+          <button key={n} type="button" title={n} className={value.kind === 'icon' && value.name === n ? 'on' : ''} onClick={() => onChange({ kind: 'icon', name: n })}>
+            <Ph name={n} size={20} weight="fill" />
           </button>
         ))}
         {tab === 'brand' && brandList.map(([k, b]) => (
@@ -65,7 +70,7 @@ export function IconPicker({ value, onChange }: { value: IconRef; onChange: (i: 
           <span className="fld-hint">GIF остаётся анимированным. Остальное уменьшается до 320 px.</span>
         </div>
       )}
-      {tab === 'lucide' && found.length === 180 && <span className="fld-hint">Показаны первые 180 — уточните поиск. Всего значков: {names.length}.</span>}
+      {tab === 'icon' && found.length === 180 && <span className="fld-hint">Показаны первые 180 из <span className="mono">{names.length}</span> — уточните поиск.</span>}
     </div>
   );
 }

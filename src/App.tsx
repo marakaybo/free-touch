@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ArrowDown, ArrowUp, Copy, Download, Minus, Plus, Redo2, Settings as Gear, Smartphone, Square, Trash2, Undo2, X } from 'lucide-react';
+import { Ph } from '../shared/render';
 import { newPage, uid } from '../shared/defaults';
 import { on, win } from './api';
 import { Canvas } from './components/Canvas';
@@ -77,36 +77,40 @@ function Shell() {
 function TitleBar({ onPair, onSettings, phones, updateVersion, onUpdate }: {
   onPair: () => void; onSettings: () => void; phones: number; updateVersion?: string; onUpdate: () => void;
 }) {
-  const { undo, redo, canUndo, canRedo, server, obs, settings } = useStore();
-  const obsText = obs.connected ? 'OBS подключён' : settings.obs.enabled ? (obs.error ?? 'OBS не подключён') : 'OBS выключен';
+  const { undo, redo, canUndo, canRedo, server, obs, settings, clients, dirty } = useStore();
+  const obsText = obs.connected ? 'подключён' : settings.obs.enabled ? 'нет связи' : 'выключен';
+  const phoneText = !server.running ? 'сервер остановлен' : phones === 0 ? 'нет' : phones === 1 ? clients[0].name : `${phones} шт.`;
   return (
     <header className="titlebar" data-tauri-drag-region>
       <div className="brand" data-tauri-drag-region>
-        <img src="/logo.svg" alt="" width="22" height="22" />
+        <img src="/logo.svg" alt="" width="18" height="18" />
         <span>Free Touch</span>
       </div>
       <div className="status" data-tauri-drag-region>
-        <span className={`pill ${server.running ? (phones ? 'ok' : '') : 'bad'}`} title={server.error ?? `Порт ${server.port}`}>
-          <i />{server.running ? (phones ? `Телефонов: ${phones}` : 'Ждёт телефон') : server.error ?? 'Сервер остановлен'}
+        <span className="st" title={server.error ?? `Сервер для телефонов, порт ${server.port}`}>
+          <i className={`led ${server.running && phones ? 'on' : ''}`} />Телефон <b className={phones ? 'mono' : ''}>{phoneText}</b>
         </span>
-        <span className={`pill ${obs.connected ? 'ok' : settings.obs.enabled ? 'warn' : ''}`} title={obs.error ?? ''} onClick={onSettings}>
-          <i />{obsText}
+        <button className="st" title={obs.error ?? 'Настройки OBS'} onClick={onSettings}>
+          <i className={`led ${obs.connected ? 'on' : ''}`} />OBS <b>{obsText}</b>
+        </button>
+        <span className="st" title={dirty ? 'Изменения сохраняются…' : 'Все изменения сохранены и отправлены на телефоны'}>
+          <i className={`led ${dirty ? 'pending' : ''}`} /><b>{dirty ? 'Не сохранено' : 'Сохранено'}</b>
         </span>
       </div>
       <div className="tb-right">
         {updateVersion && (
-          <button className="upd-pill" onClick={onUpdate} title="Посмотреть, что нового">
-            <Download size={14} /> Обновление {updateVersion}
+          <button className="st upd" onClick={onUpdate} title="Посмотреть, что нового">
+            <i className="led on" />Обновление <b className="mono">{updateVersion}</b>
           </button>
         )}
-        <button className="icon-btn" disabled={!canUndo} onClick={undo} title="Отменить (Ctrl+Z)"><Undo2 size={16} /></button>
-        <button className="icon-btn" disabled={!canRedo} onClick={redo} title="Вернуть (Ctrl+Y)"><Redo2 size={16} /></button>
-        <button className="btn primary" onClick={onPair}><Smartphone size={15} /> Подключить телефон</button>
-        <button className="icon-btn" onClick={onSettings} title="Настройки"><Gear size={17} /></button>
+        <button className="icon-btn" disabled={!canUndo} onClick={undo} title="Отменить (Ctrl+Z)"><Ph name="arrow-counter-clockwise" size={16} /></button>
+        <button className="icon-btn" disabled={!canRedo} onClick={redo} title="Вернуть (Ctrl+Y)"><Ph name="arrow-clockwise" size={16} /></button>
+        <button className="btn primary" onClick={onPair}><Ph name="device-mobile" size={15} /> Подключить телефон</button>
+        <button className="icon-btn" onClick={onSettings} title="Настройки"><Ph name="gear" size={17} /></button>
         <div className="winctl">
-          <button onClick={() => win().then((w) => w.minimize())} title="Свернуть"><Minus size={15} /></button>
-          <button onClick={() => win().then((w) => w.toggleMaximize())} title="Развернуть"><Square size={12} /></button>
-          <button className="close" onClick={() => win().then((w) => w.close())} title="Закрыть в трей"><X size={16} /></button>
+          <button onClick={() => win().then((w) => w.minimize())} title="Свернуть"><Ph name="minus" size={15} /></button>
+          <button onClick={() => win().then((w) => w.toggleMaximize())} title="Развернуть"><Ph name="square" size={12} /></button>
+          <button className="close" onClick={() => win().then((w) => w.close())} title="Закрыть в трей"><Ph name="x" size={16} /></button>
         </div>
       </div>
     </header>
@@ -143,27 +147,30 @@ function Sidebar() {
     <nav className="side">
       <div className="side-head">
         <h4>Страницы</h4>
-        <button className="icon-btn" onClick={addPage} title="Новая страница"><Plus size={16} /></button>
+        <button className="icon-btn" onClick={addPage} title="Новая страница"><Ph name="plus" size={16} /></button>
       </div>
       <div className="pages">
         {profile.pages.map((p, i) => (
           <div key={p.id} className={`page-item ${p.id === pageId ? 'on' : ''}`} onClick={() => setPageId(p.id)}>
-            <span className="page-name">{p.name || 'Без названия'}{profile.home === p.id && <em>главная</em>}</span>
-            <span className="page-meta">{p.cols}×{p.rows} · {p.buttons.length}</span>
+            <span className="page-name">
+              {p.name || 'Без названия'}
+              {profile.home === p.id && <span title="Главная — открывается первой"><Ph name="house" size={13} /></span>}
+            </span>
+            <span className="page-meta mono">{p.cols}×{p.rows}  {p.buttons.length} кл.</span>
             <span className="page-tools" onClick={(e) => e.stopPropagation()}>
-              <button className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} title="Выше"><ArrowUp size={13} /></button>
-              <button className="icon-btn" disabled={i === profile.pages.length - 1} onClick={() => move(i, 1)} title="Ниже"><ArrowDown size={13} /></button>
-              <button className="icon-btn" onClick={() => dup(i)} title="Копия"><Copy size={13} /></button>
-              <button className="icon-btn danger" disabled={profile.pages.length === 1} onClick={() => del(i)} title="Удалить"><Trash2 size={13} /></button>
+              <button className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} title="Выше"><Ph name="arrow-up" size={13} /></button>
+              <button className="icon-btn" disabled={i === profile.pages.length - 1} onClick={() => move(i, 1)} title="Ниже"><Ph name="arrow-down" size={13} /></button>
+              <button className="icon-btn" onClick={() => dup(i)} title="Копия"><Ph name="copy" size={13} /></button>
+              <button className="icon-btn danger" disabled={profile.pages.length === 1} onClick={() => del(i)} title="Удалить"><Ph name="trash" size={13} /></button>
             </span>
           </div>
         ))}
       </div>
       <div className="side-head"><h4>Устройства</h4></div>
       <div className="devices">
-        {clients.length === 0 && <div className="side-empty">Пока никого. Нажмите «Подключить телефон».</div>}
+        {clients.length === 0 && <div className="side-empty">Телефоны не подключены</div>}
         {clients.map((c) => (
-          <div key={c.id} className="device-item"><i />{c.name}<small>{c.addr}</small></div>
+          <div key={c.id} className="device-item"><i className="led on" /><span>{c.name}</span><small className="mono">{c.addr}</small></div>
         ))}
       </div>
     </nav>

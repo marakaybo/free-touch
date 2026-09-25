@@ -1,25 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1D2030"/>
-      <stop offset="1" stop-color="#0D0E14"/>
-    </linearGradient>
-    <linearGradient id="acc" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#8F6BFF"/>
-      <stop offset="1" stop-color="#1FD6C1"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#5FA8FF" stop-opacity="0.45"/>
-      <stop offset="1" stop-color="#5FA8FF" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect x="32" y="32" width="960" height="960" rx="236" fill="url(#bg)"/>
-  <rect x="34" y="34" width="956" height="956" rx="234" fill="none" stroke="#FFFFFF" stroke-opacity="0.07" stroke-width="4"/>
-  <circle cx="677" cy="677" r="330" fill="url(#glow)"/>
-  <rect x="212" y="212" width="270" height="270" rx="76" fill="#2B2F40"/>
-  <rect x="542" y="212" width="270" height="270" rx="76" fill="#2B2F40"/>
-  <rect x="212" y="542" width="270" height="270" rx="76" fill="#2B2F40"/>
-  <rect x="542" y="542" width="270" height="270" rx="76" fill="url(#acc)"/>
-  <circle cx="677" cy="677" r="52" fill="#FFFFFF" fill-opacity="0.95"/>
-  <circle cx="677" cy="677" r="96" fill="none" stroke="#FFFFFF" stroke-opacity="0.45" stroke-width="12"/>
+  <defs><clipPath id="k0"><rect x="200" y="200" width="284" height="284" rx="40"/></clipPath><clipPath id="k1"><rect x="540" y="200" width="284" height="284" rx="40"/></clipPath><clipPath id="k2"><rect x="200" y="540" width="284" height="284" rx="40"/></clipPath><clipPath id="k3"><rect x="540" y="540" width="284" height="284" rx="40"/></clipPath></defs>
+  <rect x="40" y="40" width="944" height="944" rx="200" fill="#18191B"/>
+  <rect x="84" y="84" width="856" height="856" rx="164" fill="#0E0F10"/>
+  <g clip-path="url(#k0)">
+    <rect x="200" y="200" width="284" height="284" rx="40" fill="#2A2C30"/>
+    <rect x="200" y="452" width="284" height="32" rx="0" fill="#1B1C1F"/>
+    <rect x="200" y="200" width="284" height="8" fill="#3A3C41"/>
+  </g>
+  <g clip-path="url(#k1)">
+    <rect x="540" y="200" width="284" height="284" rx="40" fill="#2A2C30"/>
+    <rect x="540" y="452" width="284" height="32" fill="#1B1C1F"/>
+    <rect x="540" y="200" width="284" height="8" fill="#3A3C41"/>
+  </g>
+  <g clip-path="url(#k2)">
+    <rect x="200" y="540" width="284" height="284" rx="40" fill="#2A2C30"/>
+    <rect x="200" y="792" width="284" height="32" fill="#1B1C1F"/>
+    <rect x="200" y="540" width="284" height="8" fill="#3A3C41"/>
+  </g>
+  <g clip-path="url(#k3)">
+    <rect x="540" y="540" width="284" height="284" rx="40" fill="#2A2C30"/>
+    <rect x="540" y="792" width="284" height="32" fill="#1B1C1F"/>
+    <rect x="540" y="540" width="284" height="8" fill="#3A3C41"/>
+    <rect x="620" y="580" width="124" height="22" rx="11" fill="#3D7BFF"/>
+  </g>
 </svg>

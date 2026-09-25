@@ -1,9 +1,9 @@
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; height: 100%; background: #0C0D11; overflow: hidden; overscroll-behavior: none; }
+html, body, #root { margin: 0; height: 100%; background: #121314; overflow: hidden; overscroll-behavior: none; }
 body {
-  font-family: 'Onest Variable', system-ui, sans-serif;
-  color: #ECEDF3;
+  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  color: #E6E7E9;
   -webkit-font-smoothing: antialiased;
   -webkit-user-select: none;
   user-select: none;
@@ -11,11 +11,12 @@ body {
 }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
-.pn-root { position: fixed; inset: 0; display: flex; flex-direction: column; transition: background .35s; }
-.pn-stage { flex: none; display: grid; place-items: center; touch-action: none; }
+.pn-root { position: fixed; inset: 0; display: flex; flex-direction: column; transition: background .3s; }
+.pn-stage { position: relative; flex: none; display: grid; place-items: center; touch-action: none; }
 .pn-grid { display: grid; }
 .pn-center { flex: 1; display: grid; place-items: center; }
 
+/* Нижняя строка: индикатор связи, сегменты страниц, полный экран. */
 .pn-bar {
   flex: none;
   display: grid;
@@ -23,59 +24,62 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   align-items: center;
   padding: 0 14px calc(env(safe-area-inset-bottom) * .5);
   font-size: 12px;
-  color: rgba(236,237,243,.55);
+  color: #8E9197;
 }
-.pn-status { display: flex; align-items: center; gap: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pn-led { width: 7px; height: 7px; border-radius: 50%; background: #E5484D; flex: none; }
-.pn-led.on { background: #3DD68C; }
-.pn-dots { display: flex; gap: 2px; }
-.pn-dots button { width: 22px; height: 26px; display: grid; place-items: center; }
-.pn-dots span { width: 7px; height: 7px; border-radius: 4px; background: rgba(255,255,255,.28); transition: width .2s, background .2s; }
-.pn-dots .on span { width: 18px; background: #ECEDF3; }
-.pn-fs { justify-self: end; width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: rgba(236,237,243,.6); }
+.pn-status { display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; }
+.pn-pc { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; }
+.pn-led { width: 6px; height: 6px; border-radius: 50%; background: #45474C; flex: none; }
+.pn-led.on { background: #3D7BFF; }
+.pn-pages { display: flex; gap: 2px; }
+.pn-pages button { width: 22px; height: 28px; display: grid; place-items: center; }
+.pn-pages span { width: 14px; height: 3px; border-radius: 1px; background: #34363B; transition: background .15s; }
+.pn-pages .on span { background: #3D7BFF; }
+.pn-fs { justify-self: end; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 6px; color: #8E9197; }
+.pn-fs:active { background: #1D1E21; }
 
 .pn-overlay {
   position: fixed; inset: 0; z-index: 10;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-  background: rgba(10,11,15,.72); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
-  font-size: 16px; text-align: center; padding: 24px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  background: rgba(14,15,16,.9);
+  font-size: 15px; text-align: center; padding: 24px;
 }
-.pn-overlay small { color: rgba(236,237,243,.55); font-size: 13px; max-width: 280px; line-height: 1.4; }
-.pn-spinner { width: 30px; height: 30px; border-radius: 50%; border: 3px solid rgba(255,255,255,.15); border-top-color: #ECEDF3; animation: pn-spin .8s linear infinite; }
+.pn-overlay small { color: #8E9197; font-size: 13px; max-width: 280px; line-height: 1.45; }
+.pn-spinner { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #2A2C30; border-top-color: #3D7BFF; animation: pn-spin .8s linear infinite; }
 @keyframes pn-spin { to { transform: rotate(360deg) } }
 
 .pn-toast {
   position: fixed; left: 50%; bottom: 48px; transform: translateX(-50%); z-index: 20;
-  background: #2A1B1F; color: #FFD9DC; border-radius: 12px; padding: 10px 16px; font-size: 14px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.5); max-width: calc(100% - 32px); animation: pn-in .2s ease-out;
+  background: #212225; color: #E6E7E9; border-radius: 8px; padding: 10px 14px; font-size: 14px;
+  max-width: calc(100% - 32px); animation: pn-in .15s ease-out;
 }
-@keyframes pn-in { from { opacity: 0; transform: translate(-50%, 8px) } }
+@keyframes pn-in { from { opacity: 0; transform: translate(-50%, 6px) } }
 
-.pn-setup {
-  position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 14px; padding: 28px; text-align: center;
-  background: radial-gradient(120% 80% at 50% 0%, #1B1535 0%, #0C0D11 60%);
-}
-.pn-setup img { border-radius: 22px; }
-.pn-setup h1 { margin: 0; font-family: 'Unbounded Variable', sans-serif; font-size: 26px; letter-spacing: -0.02em; }
-.pn-setup p { margin: 0; max-width: 320px; line-height: 1.5; color: rgba(236,237,243,.7); font-size: 15px; }
-.pn-form { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 340px; margin-top: 8px; }
-.pn-form input { user-select: text; -webkit-user-select: text; font: inherit; font-size: 15px; padding: 13px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.06); color: inherit; outline: none; }
-.pn-form button { padding: 13px; border-radius: 12px; background: linear-gradient(135deg, #8F6BFF, #1FD6C1); color: #fff; font-weight: 700; }
-.pn-err { color: #FF9AA2; font-size: 14px; max-width: 320px; line-height: 1.4; }
-
-.pn-stage { position: relative; }
 .pn-rotate {
   position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 5;
   display: flex; align-items: center; gap: 8px; white-space: nowrap;
-  padding: 8px 14px; border-radius: 20px; font-size: 13px;
-  background: rgba(20,21,28,.92); border: 1px solid rgba(255,255,255,.1); color: rgba(236,237,243,.85);
-  animation: pn-in .3s ease-out;
+  padding: 8px 12px; border-radius: 8px; font-size: 13px;
+  background: #212225; color: #C9CBCF;
 }
-/* Заполнение, пока палец держат на кнопке с долгим нажатием. */
+
+.pn-setup {
+  position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px; padding: 28px; text-align: center; background: #121314;
+}
+.pn-setup img { border-radius: 16px; }
+.pn-setup h1 { margin: 0; font-size: 22px; font-weight: 600; }
+.pn-setup p { margin: 0; max-width: 320px; line-height: 1.5; color: #9A9DA3; font-size: 15px; }
+.pn-form { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 340px; margin-top: 8px; }
+.pn-form input { user-select: text; -webkit-user-select: text; font: 14px 'IBM Plex Mono', monospace; padding: 12px 14px; border-radius: 8px; border: 0; background: #212225; color: inherit; outline: none; }
+.pn-form input:focus { box-shadow: 0 0 0 1px #3D7BFF; }
+.pn-form button { padding: 12px; border-radius: 8px; background: #3D7BFF; color: #fff; font-weight: 500; }
+.pn-err { color: #E6E7E9; font-size: 14px; max-width: 320px; line-height: 1.45; }
+
+/* Пока палец держат на клавише с долгим нажатием, снизу поднимается заливка. */
 .is-holding .ft-face::after {
   content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background: linear-gradient(0deg, rgba(255,255,255,.22), rgba(255,255,255,.22)) no-repeat bottom / 100% 0%;
+  background: linear-gradient(rgba(255,255,255,.12), rgba(255,255,255,.12)) no-repeat bottom / 100% 0%;
   animation: pn-hold .5s linear forwards;
 }
 @keyframes pn-hold { to { background-size: 100% 100% } }
+/* Пульт без связи — клавиши гаснут. */
+.pn-root.is-offline .pn-grid { filter: saturate(0) brightness(.6); }

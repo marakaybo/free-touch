@@ -1,12 +1,13 @@
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 import type { Fill } from '../../shared/types';
 import { pickFile, api } from '../api';
-import { fillCss } from '../../shared/render';
+import { KEY_COLORS } from '../../shared/defaults';
+import { Ph, fillCss } from '../../shared/render';
 
-export function Field({ label, hint, children, row }: { label: string; hint?: string; children: ReactNode; row?: boolean }) {
+export function Field({ label, hint, children, row, changed }: { label: string; hint?: string; children: ReactNode; row?: boolean; changed?: boolean }) {
   return (
-    <label className={`fld ${row ? 'fld-row' : ''}`}>
-      <span className="fld-label">{label}</span>
+    <label className={`fld ${row ? 'fld-row' : ''} ${changed ? 'is-changed' : ''}`}>
+      <span className="fld-label">{label}{changed && <i className="chg" title="Изменено, не сохранено" />}</span>
       {children}
       {hint && <span className="fld-hint">{hint}</span>}
     </label>
@@ -36,11 +37,11 @@ export function Seg<T extends string>({ value, options, onChange }: {
   );
 }
 
-export function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: ReactNode }) {
+export function Toggle({ checked, onChange, label, changed }: { checked: boolean; onChange: (v: boolean) => void; label: ReactNode; changed?: boolean }) {
   return (
     <button type="button" className={`tgl ${checked ? 'on' : ''}`} onClick={() => onChange(!checked)}>
       <span className="tgl-track"><span className="tgl-knob" /></span>
-      <span>{label}</span>
+      <span>{label}{changed && <i className="chg" title="Изменено, не сохранено" />}</span>
     </button>
   );
 }
@@ -56,7 +57,7 @@ export function Range({ value, min, max, step = 1, onChange, suffix = '' }: {
         style={{ ['--p' as string]: `${pct}%` }}
         onChange={(e) => onChange(Number(e.target.value))}
       />
-      <span className="rng-val">{value}{suffix}</span>
+      <span className="rng-val">{value}{suffix.trim()}</span>
     </div>
   );
 }
@@ -108,9 +109,9 @@ export function Select<T extends string>({ value, options, onChange, placeholder
   );
 }
 
-const QUICK = ['#23252F', '#0E1016', '#FFFFFF', '#E5484D', '#FF8A3D', '#F5C542', '#3DD68C', '#1FD6C1', '#2F6BFF', '#8F6BFF', '#E54DB2', '#00000000'];
+const QUICK = [...KEY_COLORS.map((c) => c.fill), '#121314', '#C9CBCF', '#FFFFFF'];
 
-/** Цвет с прозрачностью: #RRGGBB или #RRGGBBAA. */
+/** Цвет с прозрачностью: #RRGGBB или #RRGGBBAA. Код цвета — моноширинным. */
 export function Color({ value, onChange, compact }: { value: string; onChange: (v: string) => void; compact?: boolean }) {
   const ref = useRef<HTMLInputElement>(null);
   const hex = value.slice(0, 7);
@@ -118,16 +119,19 @@ export function Color({ value, onChange, compact }: { value: string; onChange: (
   const setAlpha = (a: number) => onChange(hex + (a >= 255 ? '' : Math.round(a).toString(16).padStart(2, '0')));
   return (
     <div className={`clr ${compact ? 'compact' : ''}`}>
-      <button type="button" className="clr-sw" onClick={() => ref.current?.click()}>
+      <button type="button" className="clr-sw" onClick={() => ref.current?.click()} title="Выбрать цвет">
         <span style={{ background: value }} />
       </button>
-      <input ref={ref} type="color" value={hex} onChange={(e) => onChange(e.target.value + (alpha >= 255 ? '' : value.slice(7)))} hidden />
-      <input className="inp mono clr-hex" value={value} onChange={(e) => /^#[0-9a-fA-F]{0,8}$/.test(e.target.value) && onChange(e.target.value)} />
+      <input ref={ref} type="color" value={hex} onChange={(e) => onChange(e.target.value.toUpperCase() + (alpha >= 255 ? '' : value.slice(7)))} hidden />
+      <input className="inp mono clr-hex" value={value} spellCheck={false} onChange={(e) => /^#[0-9a-fA-F]{0,8}$/.test(e.target.value) && onChange(e.target.value.toUpperCase())} />
       {!compact && (
         <>
-          <input className="clr-alpha" type="range" min={0} max={255} value={alpha} onChange={(e) => setAlpha(Number(e.target.value))} title="Прозрачность" style={{ ['--c' as string]: hex }} />
           <div className="clr-quick">
-            {QUICK.map((c) => <button key={c} type="button" style={{ background: c }} className={c === value ? 'on' : ''} onClick={() => onChange(c)} />)}
+            {QUICK.map((c) => <button key={c} type="button" style={{ background: c }} className={c === value ? 'on' : ''} onClick={() => onChange(c)} title={c} />)}
+          </div>
+          <div className="clr-alpha-row">
+            <span className="fld-label">Непрозрачность</span>
+            <Range value={Math.round((alpha / 255) * 100)} min={0} max={100} suffix="%" onChange={(v) => setAlpha((v / 100) * 255)} />
           </div>
         </>
       )}
@@ -155,41 +159,19 @@ export async function loadImage(maxSide: number): Promise<string | null> {
 export function FillEditor({ fill, onChange, allowImage = true }: { fill: Fill; onChange: (f: Fill) => void; allowImage?: boolean }) {
   const setType = (t: Fill['type']) => {
     if (t === fill.type) return;
-    const base = fill.type === 'solid' ? fill.color : fill.type === 'gradient' ? fill.from : '#23252F';
-    if (t === 'solid') onChange({ type: 'solid', color: base });
-    if (t === 'gradient') onChange({ type: 'gradient', from: base.slice(0, 7), to: '#1FD6C1', angle: 135 });
-    if (t === 'image') {
-      loadImage(900).then((src) => src && onChange({ type: 'image', src, dim: 0.25 }));
-    }
+    if (t === 'solid') onChange({ type: 'solid', color: '#2A2C30' });
+    if (t === 'image') loadImage(900).then((src) => src && onChange({ type: 'image', src, dim: 0.35 }));
   };
   return (
     <div className="fill-ed">
-      <Seg
-        value={fill.type}
-        onChange={setType}
-        options={[
-          { v: 'solid', label: 'Цвет' },
-          { v: 'gradient', label: 'Градиент' },
-          ...(allowImage ? [{ v: 'image' as const, label: 'Картинка' }] : []),
-        ]}
-      />
-      {fill.type === 'solid' && <Color value={fill.color} onChange={(color) => onChange({ ...fill, color })} />}
-      {fill.type === 'gradient' && (
-        <>
-          <div className="grad-prev" style={fillCss(fill)} />
-          <div className="two">
-            <Color compact value={fill.from} onChange={(from) => onChange({ ...fill, from })} />
-            <Color compact value={fill.to} onChange={(to) => onChange({ ...fill, to })} />
-          </div>
-          <Field label="Угол"><Range value={fill.angle} min={0} max={360} step={5} suffix="°" onChange={(angle) => onChange({ ...fill, angle })} /></Field>
-        </>
+      {allowImage && (
+        <Seg value={fill.type} onChange={setType} options={[{ v: 'solid', label: 'Цвет' }, { v: 'image', label: 'Картинка' }]} />
       )}
+      {fill.type === 'solid' && <Color value={fill.color} onChange={(color) => onChange({ ...fill, color })} />}
       {fill.type === 'image' && (
         <>
-          <div className="grad-prev" style={fillCss(fill)} />
-          <div className="two">
-            <button type="button" className="btn" onClick={() => loadImage(900).then((src) => src && onChange({ ...fill, src }))}>Другая картинка</button>
-          </div>
+          <div className="img-prev" style={fillCss(fill)} />
+          <button type="button" className="btn" onClick={() => loadImage(900).then((src) => src && onChange({ ...fill, src }))}>Другая картинка</button>
           <Field label="Затемнение"><Range value={Math.round(fill.dim * 100)} min={0} max={90} suffix="%" onChange={(d) => onChange({ ...fill, dim: d / 100 })} /></Field>
         </>
       )}
@@ -208,7 +190,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
       <div className={`modal ${wide ? 'wide' : ''}`}>
         <div className="modal-head">
           <h3>{title}</h3>
-          <button className="icon-btn" onClick={onClose} aria-label="Закрыть">✕</button>
+          <button className="icon-btn" onClick={onClose} aria-label="Закрыть" title="Закрыть (Esc)"><Ph name="x" size={16} /></button>
         </div>
         <div className="modal-body">{children}</div>
       </div>

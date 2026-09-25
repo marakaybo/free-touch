@@ -1,7 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
 import { newButton, uid } from '../../shared/defaults';
-import { ButtonFace, SliderFace, fillCss, sliderStateKey, usesClock } from '../../shared/render';
+import { ButtonFace, Ph, SliderFace, fillCss, sliderStateKey, usesClock } from '../../shared/render';
 import type { Button, Page } from '../../shared/types';
 import { useStore } from '../store';
 
@@ -20,7 +19,7 @@ type Drag = { id: string; kind: 'move' | 'resize'; sx: number; sy: number; ox: n
 let clipboard: Button | null = null;
 
 export function Canvas() {
-  const { page, profile, states, selected, select, updatePage } = useStore();
+  const { page, states, selected, select, updatePage } = useStore();
   const wrap = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 600, h: 400 });
   const [drag, setDrag] = useState<Drag | null>(null);
@@ -45,7 +44,7 @@ export function Canvas() {
   const PAD = 26;
   const gap = page.gap;
   // запас под рамку «телефона» и подсказку снизу
-  const cell = Math.max(24, Math.min((box.w - PAD * 2 - 64 - gap * (page.cols - 1)) / page.cols, (box.h - PAD * 2 - 90 - gap * (page.rows - 1)) / page.rows, 170));
+  const cell = Math.max(24, Math.min((box.w - PAD * 2 - 64 - gap * (page.cols - 1)) / page.cols, (box.h - PAD * 2 - 110 - gap * (page.rows - 1)) / page.rows, 170));
   const gw = cell * page.cols + gap * (page.cols - 1);
   const gh = cell * page.rows + gap * (page.rows - 1);
   const step = cell + gap;
@@ -147,7 +146,6 @@ export function Canvas() {
   const addAt = (x: number, y: number) => {
     const b = newButton(x, y);
     b.style.label = 'Кнопка';
-    b.style.icon = { kind: 'lucide', name: 'Sparkles' };
     updatePage((p) => { p.buttons.push(b); });
     select(b.id);
   };
@@ -157,8 +155,8 @@ export function Canvas() {
     for (let x = 0; x < page.cols; x++) {
       if (fits(page, x, y, 1, 1)) {
         slots.push(
-          <button key={`${x}-${y}`} className="slot" style={pos(x, y, 1, 1)} onClick={() => addAt(x, y)} title="Добавить кнопку">
-            <Plus size={Math.max(14, cell * 0.2)} />
+          <button key={`${x}-${y}`} className="slot" style={pos(x, y, 1, 1)} onClick={() => addAt(x, y)} title="Добавить клавишу">
+            <Ph name="plus" size={Math.max(14, cell * 0.2)} />
           </button>,
         );
       }
@@ -167,7 +165,12 @@ export function Canvas() {
 
   return (
     <div className="canvas" ref={wrap} onPointerDown={(e) => e.target === e.currentTarget && select(null)}>
-      <div className="device" style={{ ...fillCss(page.background), width: gw + PAD * 2, height: gh + PAD * 2 }} onPointerDown={(e) => e.target === e.currentTarget && select(null)}>
+      <div className="canvas-bar">
+        <span className="canvas-title">{page.name || 'Без названия'}</span>
+        <span className="mono dim">{page.cols}×{page.rows}</span>
+        <HelpButton />
+      </div>
+      <div className="deck" style={{ ...fillCss(page.background), width: gw + PAD * 2, height: gh + PAD * 2 }} onPointerDown={(e) => e.target === e.currentTarget && select(null)}>
         <div className="grid-area" style={{ width: gw, height: gh }} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
           {slots}
           {page.buttons.map((b) => {
@@ -178,14 +181,14 @@ export function Canvas() {
             return (
               <div
                 key={b.id}
-                className={`ft-cell ed-cell ${isSel ? 'sel' : ''} ${moving ? 'moving' : ''}`}
+                className={`ft-cell ed-cell ${isSel ? 'is-selected' : ''} ${moving ? 'moving' : ''}`}
                 style={pos(b.x, b.y, b.w, b.h)}
                 onPointerDown={(e) => startDrag(e, b, 'move')}
               >
                 {b.type === 'slider'
                   ? <SliderFace button={b} states={states} value={Number(states[sliderStateKey(b)] ?? 50)} />
-                  : <ButtonFace button={b} states={states} accent={profile.accent} now={now} />}
-                {b.type === 'button' && b.longActions.length > 0 && <span className="ft-long-mark" />}
+                  : <ButtonFace button={b} states={states} now={now} />}
+                {b.type === 'button' && b.longActions.length > 0 && <span className="ft-long-mark" title="Есть долгое нажатие" />}
                 {isSel && <span className="rs-handle" onPointerDown={(e) => startDrag(e, b, 'resize')} title="Потяните, чтобы изменить размер" />}
               </div>
             );
@@ -193,9 +196,48 @@ export function Canvas() {
           {ghost && drag?.moved && <div className={`drop-ghost ${ghost.ok ? '' : 'bad'}`} style={pos(ghost.x, ghost.y, ghost.w, ghost.h)} />}
         </div>
       </div>
-      <div className="canvas-hint">
-        Клик по пустой ячейке — новая кнопка · перетащите на другую кнопку — поменяются местами · уголок — размер · Ctrl+D — копия · Delete — удалить
-      </div>
+    </div>
+  );
+}
+
+const HELP: [string, string][] = [
+  ['Клик по пустому гнезду', 'Новая клавиша'],
+  ['Перетащить клавишу', 'Переставить'],
+  ['Перетащить на другую клавишу', 'Поменять местами'],
+  ['Уголок выделенной клавиши', 'Изменить размер'],
+  ['Стрелки', 'Сдвинуть выделенную'],
+  ['Ctrl+D', 'Копия клавиши'],
+  ['Ctrl+C / Ctrl+V', 'Копировать и вставить'],
+  ['Delete', 'Удалить клавишу'],
+  ['Ctrl+Z / Ctrl+Y', 'Отменить и вернуть'],
+  ['Esc', 'Снять выделение'],
+];
+
+function HelpButton() {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => { if (!(e.target as HTMLElement).closest('.help')) setOpen(false); };
+    window.addEventListener('mousedown', close);
+    return () => window.removeEventListener('mousedown', close);
+  }, [open]);
+  return (
+    <div className="help">
+      <button className={`icon-btn ${open ? 'on' : ''}`} onClick={() => setOpen(!open)} title="Управление">
+        <Ph name="question" size={17} />
+      </button>
+      {open && (
+        <div className="help-pop">
+          <h4>Управление</h4>
+          <table>
+            <tbody>
+              {HELP.map(([k, v]) => (
+                <tr key={k}><td>{/^(Ctrl|Delete|Esc|Стрелки)/.test(k) ? <kbd>{k}</kbd> : k}</td><td>{v}</td></tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }
