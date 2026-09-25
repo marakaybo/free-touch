@@ -123,14 +123,33 @@ export interface Page {
   portrait: { cols: number; rows: number; pos: Record<string, Pos> } | null;
   /** Квадратные клавиши вместо растянутых на весь экран. */
   square: boolean;
+  /** grid — клавиши по сетке, free — любое место и любой размер. */
+  mode: 'grid' | 'free';
+  /** Свободная раскладка: места клавиш в процентах экрана, отдельно для каждой ориентации. */
+  free: { landscape: Record<string, Rect>; portrait: Record<string, Rect> } | null;
+  /** Как страница выглядит во вкладках на телефоне. */
+  tab: { icon: IconRef; color: string };
 }
+
+/** Прямоугольник в процентах от рабочей области экрана (0–100). */
+export interface Rect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** Панель страниц внизу пульта. */
+export type NavStyle = 'tabs' | 'icons' | 'dots' | 'none';
 
 export interface Profile {
   version: 1;
   name: string;
   accent: string;
-  /** Показывать точки страниц внизу пульта. */
+  /** Показывать точки страниц внизу пульта (устарело — см. nav). */
   pageDots: boolean;
+  /** Панель страниц внизу пульта. */
+  nav: NavStyle;
   /** Не давать экрану телефона гаснуть, пока открыт пульт. */
   keepAwake: boolean;
   home: string;

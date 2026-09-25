@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
-import { DIM_TEXT, KEY_COLORS, LIVE_STATES, PAGE_BACKGROUNDS, icon as phIcon, keyColorStyle, suggestActive, uid, withStyle, newButton, newPage } from '../../shared/defaults';
+import { DIM_TEXT, KEY_COLORS, LIVE_STATES, PAGE_BACKGROUNDS, icon as phIcon, keyColorStyle, suggestActive, withStyle, newButton, newPage } from '../../shared/defaults';
 import { BRANDS } from '../../shared/brands';
-import { Ph, fillCss } from '../../shared/render';
-import type { Action, ActiveRule, Button, ButtonStyle, Fill, SliderTarget } from '../../shared/types';
+import { IconView, Ph, fillCss } from '../../shared/render';
+import type { Action, ActiveRule, Button, ButtonStyle, Fill, NavStyle, SliderTarget } from '../../shared/types';
 import { api } from '../api';
 import { useStore } from '../store';
 import { ActionCard, AddActionMenu } from './ActionEditor';
-import { layoutOf, placeNew, removeButton, setGrid, spotForCopy } from '../../shared/layout';
+import { freeRectsOf, layoutOf, removeButton, setGrid, setRect } from '../../shared/layout';
+import { duplicate, useAreas } from './Canvas';
 import { IconPicker } from './IconPicker';
 import { Color, Field, FillEditor, Num, Range, Section, Seg, Text, Toggle } from './ui';
 
@@ -22,7 +23,8 @@ export function Inspector() {
 // ---------------- кнопка ----------------
 
 function ButtonInspector({ b }: { b: Button }) {
-  const { updateButton, updatePage, select, page, orient } = useStore();
+  const { updateButton, updatePage, select, orient } = useStore();
+  const areas = useAreas();
   const [tab, setTab] = useState<'look' | 'actions' | 'active'>('look');
   const up = (fn: (x: Button) => void, merge?: string) => updateButton(b.id, fn, merge);
 
@@ -41,12 +43,9 @@ function ButtonInspector({ b }: { b: Button }) {
           <button
             className="icon-btn" title="Копия (Ctrl+D)"
             onClick={() => {
-              const cur = layoutOf(page, orient).pos[b.id] ?? { x: 0, y: 0, w: 1, h: 1 };
-              const spot = spotForCopy(page, orient, cur);
-              if (!spot) return;
-              const c: Button = { ...structuredClone(b), id: uid() };
-              updatePage((p) => placeNew(p, orient, c, spot));
-              select(c.id);
+              let id: string | null = null;
+              updatePage((p) => { id = duplicate(p, orient, b, areas); });
+              if (id) select(id);
             }}
           ><Ph name="copy" size={16} /></button>
           <button className="icon-btn danger" title="Удалить (Delete)" onClick={() => { updatePage((p) => removeButton(p, b.id)); select(null); }}>
@@ -81,6 +80,41 @@ const LABEL_VARS = [
   { v: '{date}', t: 'Дата' },
 ];
 
+/** Свободная раскладка: точное место и размер клавиши в процентах экрана. */
+function PlaceSection({ b }: { b: Button }) {
+  const { page, orient, updatePage } = useStore();
+  const areas = useAreas();
+  if (page.mode !== 'free') return null;
+  const a = areas[orient];
+  const r = freeRectsOf(page, orient, a.w, a.h)[b.id];
+  if (!r) return null;
+  const set = (patch: Partial<typeof r>) => {
+    const n = { ...r, ...patch };
+    n.w = Math.max(3, Math.min(100, n.w));
+    n.h = Math.max(3, Math.min(100, n.h));
+    n.x = Math.max(0, Math.min(100 - n.w, n.x));
+    n.y = Math.max(0, Math.min(100 - n.h, n.y));
+    updatePage((p) => setRect(p, orient, b.id, n), `rect-${b.id}`);
+  };
+  const num = (v: number) => Math.round(v * 10) / 10;
+  return (
+    <Section title={`Место и размер · ${orient === 'portrait' ? 'вертикально' : 'горизонтально'}`}>
+      <div className="xywh">
+        <Field label="Слева, %"><Num value={num(r.x)} min={0} max={100} onChange={(x) => set({ x })} /></Field>
+        <Field label="Сверху, %"><Num value={num(r.y)} min={0} max={100} onChange={(y) => set({ y })} /></Field>
+        <Field label="Ширина, %"><Num value={num(r.w)} min={3} max={100} onChange={(w) => set({ w })} /></Field>
+        <Field label="Высота, %"><Num value={num(r.h)} min={3} max={100} onChange={(h) => set({ h })} /></Field>
+      </div>
+      <div className="chips">
+        <button className="chip" onClick={() => set({ x: 0, w: 100 })}>Во всю ширину</button>
+        <button className="chip" onClick={() => set({ y: 0, h: 100 })}>Во всю высоту</button>
+        <button className="chip" onClick={() => set({ w: r.h * a.h / a.w })} title="Сделать квадратной по высоте">Квадрат</button>
+        <button className="chip" onClick={() => set({ x: (100 - r.w) / 2 })}>По центру</button>
+      </div>
+    </Section>
+  );
+}
+
 function LookTab({ b, up }: { b: Button; up: Up }) {
   const s = b.style;
   const set = <K extends keyof ButtonStyle>(k: K, v: ButtonStyle[K], merge = true) => up((x) => { x.style[k] = v; }, merge ? `style.${k}` : undefined);
@@ -88,6 +122,7 @@ function LookTab({ b, up }: { b: Button; up: Up }) {
   const curFill = s.fill.type === 'solid' ? s.fill.color.toUpperCase() : '';
   return (
     <>
+      <PlaceSection b={b} />
       <Section title="Корпус">
         <div className="caps">
           {KEY_COLORS.map((c) => (
@@ -328,6 +363,7 @@ function ActiveTab({ b, up }: { b: Button; up: Up }) {
 
 function PageInspector() {
   const { page, profile, update, updatePage, obs, setPageId, orient } = useStore();
+  const [tabIcons, setTabIcons] = useState(false);
   const layout = layoutOf(page, orient);
   const placed = Object.values(layout.pos);
   const maxX = Math.max(1, ...placed.map((p) => p.x + p.w));
@@ -365,6 +401,35 @@ function PageInspector() {
           <Field label="Название"><Text value={page.name} onChange={(v) => updatePage((p) => { p.name = v; }, 'pname')} /></Field>
           <Toggle checked={profile.home === page.id} onChange={(v) => v && update((p) => { p.home = page.id; })} label="Открывать первой (главная)" />
         </Section>
+        <Section title="Вкладка на телефоне">
+          <span className="fld-hint">Так страница выглядит в панели внизу пульта — чтобы сразу было видно, где что.</span>
+          <div className="tab-prev" style={{ ['--tc' as string]: page.tab.color }}>
+            {page.tab.icon.kind !== 'none'
+              ? <IconView icon={page.tab.icon} color={page.tab.color} size="22px" />
+              : <span className="tab-letter">{(page.name || '?').slice(0, 2)}</span>}
+            <span>{page.name || 'Без названия'}</span>
+          </div>
+          <Field label="Цвет вкладки">
+            <div className="clr-quick">
+              {KEY_COLORS.filter((c) => c.id !== 'graphite' && c.id !== 'white').map((c) => (
+                <button key={c.id} type="button" title={c.name} style={{ background: c.fill }} className={page.tab.color === c.fill ? 'on' : ''} onClick={() => updatePage((p) => { p.tab.color = c.fill; })} />
+              ))}
+            </div>
+          </Field>
+          <Color compact value={page.tab.color} onChange={(v) => updatePage((p) => { p.tab.color = v; }, 'tabcolor')} />
+          <button className="btn ghost sm" onClick={() => setTabIcons(!tabIcons)}>
+            <Ph name={tabIcons ? 'caret-up' : 'caret-down'} size={14} /> {tabIcons ? 'Свернуть значки' : 'Выбрать значок вкладки'}
+          </button>
+          {tabIcons && <IconPicker value={page.tab.icon} onChange={(i) => updatePage((p) => { p.tab.icon = i; })} />}
+        </Section>
+        {page.mode === 'free' ? (
+          <Section title="Свободная раскладка">
+            <span className="fld-hint">
+              Клавиши стоят где угодно и любого размера — тяните их мышкой, уголок меняет размер, точные числа — у выбранной клавиши.
+              Для каждого положения телефона своя расстановка. Вернуться к сетке — переключатель «Сетка» над телефоном.
+            </span>
+          </Section>
+        ) : (
         <Section title={orient === 'portrait' ? 'Вертикальная раскладка' : 'Горизонтальная раскладка'}>
           <div className="two">
             <Field label="Столбцы"><Num value={layout.cols} min={maxX} max={12} onChange={(v) => updatePage((p) => setGrid(p, orient, v, layout.rows))} /></Field>
@@ -386,6 +451,7 @@ function PageInspector() {
           <Toggle checked={page.square} onChange={(v) => updatePage((p) => { p.square = v; })} label="Квадратные клавиши" />
           <span className="fld-hint">{page.square ? 'Клавиши квадратные, сетка по центру экрана.' : 'Клавиши растягиваются на весь экран телефона.'}</span>
         </Section>
+        )}
         <Section title="Фон страницы">
           <div className="bg-presets">
             {PAGE_BACKGROUNDS.map((f, i) => (
@@ -395,7 +461,13 @@ function PageInspector() {
           <FillEditor fill={page.background} allowGradient onChange={(f) => updatePage((p) => { p.background = f; }, 'pbg')} />
         </Section>
         <Section title="Весь пульт">
-          <Toggle checked={profile.pageDots} onChange={(v) => update((p) => { p.pageDots = v; })} label="Индикатор страниц внизу пульта" />
+          <Field label="Панель страниц на телефоне">
+            <Seg<NavStyle>
+              value={profile.nav}
+              onChange={(v) => update((p) => { p.nav = v; })}
+              options={[{ v: 'tabs', label: 'Вкладки' }, { v: 'icons', label: 'Значки' }, { v: 'dots', label: 'Точки' }, { v: 'none', label: 'Скрыть' }]}
+            />
+          </Field>
           <Toggle checked={profile.keepAwake} onChange={(v) => update((p) => { p.keepAwake = v; })} label="Не гасить экран телефона" />
         </Section>
         <Section title="Быстрый старт">

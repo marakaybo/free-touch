@@ -125,3 +125,35 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 }
 .qr-cam-bar .pn-btn { max-width: 340px; }
 .pn-via { font-family: "IBM Plex Mono", monospace; font-size: 11px; color: #7FA6FF; }
+
+/* ---------- первый экран ---------- */
+.pn-setup-gear { position: absolute; top: calc(12px + env(safe-area-inset-top)); right: 12px; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; color: #969BA8; }
+.pn-setup-gear:active { background: #1A1D23; }
+.pn-setup-gear .pn-upd-dot { top: 8px; right: 8px; }
+
+/* ---------- настройки ---------- */
+.st-bg { position: fixed; inset: 0; z-index: 50; background: #0F1115; animation: pn-fade .15s; overflow-y: auto; }
+.st { max-width: 520px; margin: 0 auto; padding: env(safe-area-inset-top) 0 calc(24px + env(safe-area-inset-bottom)); }
+.st-head { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 6px; padding: 10px 8px; background: #0F1115; }
+.st-head h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.st-back { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; color: #E8EAF0; }
+.st-back:active { background: #1A1D23; }
+.st-body { display: flex; flex-direction: column; gap: 14px; padding: 4px 16px; }
+.st-body section { background: #14161B; border-radius: 14px; padding: 14px 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.st-body h3 { margin: 0; font-size: 13px; font-weight: 600; color: #969BA8; }
+.st-body small { color: #5F6472; font-size: 13px; line-height: 1.45; }
+.st-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 32px; font-size: 15px; }
+.st-row b { font-weight: 500; }
+.st-conn { display: inline-flex; align-items: center; gap: 7px; }
+.st-col { display: flex; flex-direction: column; gap: 8px; font-size: 15px; }
+.st-field { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: #969BA8; }
+.st-field input { font: 15px 'IBM Plex Sans', sans-serif; color: #E8EAF0; background: #1F2229; border: 0; border-radius: 10px; padding: 11px 12px; outline: none; user-select: text; -webkit-user-select: text; }
+.st-field input:focus { box-shadow: inset 0 0 0 1px #3D7BFF; }
+.st-switch { width: 46px; height: 28px; border-radius: 14px; background: #2C303A; position: relative; flex: none; transition: background .15s; }
+.st-switch i { position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: #969BA8; transition: transform .18s, background .15s; }
+.st-switch.on { background: #3D7BFF; }
+.st-switch.on i { transform: translateX(18px); background: #fff; }
+.st-seg { display: flex; background: #1F2229; border-radius: 10px; padding: 3px; gap: 3px; }
+.st-seg button { flex: 1; height: 36px; border-radius: 8px; color: #969BA8; font-size: 13.5px; }
+.st-seg button.on { background: #2C303A; color: #E8EAF0; }
+.pn-btn:disabled { opacity: .6; }

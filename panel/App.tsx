@@ -1,21 +1,18 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import NoSleep from 'nosleep.js';
 import { normalizeProfile } from '../shared/defaults';
+import { Ph, fillCss } from '../shared/render';
+import type { Page, Profile, States } from '../shared/types';
+import { PageNav } from './Nav';
+import { PageView } from './PageView';
 import { QrCamera } from './QrCamera';
-import { APP_VERSION, checkApkUpdate, downloadApk, haptic, isNative, keepAwake as nativeKeepAwake, onBackButton, scanQr } from './native';
-import { ButtonFace, Ph, SliderFace, fillCss, sliderStateKey, usesClock } from '../shared/render';
-import { PANEL_BAR, PANEL_PAD, computeGrid, layoutOf, posStyle, type Orient } from '../shared/layout';
-import type { Button, Page, Pos, Profile, States } from '../shared/types';
+import { Settings } from './Settings';
+import { APP_VERSION, checkApkUpdate, isNative, keepAwake as nativeKeepAwake, onBackButton, scanQr } from './native';
+import { applyOrientation, getPrefs, store, usePrefs } from './prefs';
 
 // ---------- подключение ----------
 
 type Conn = 'connecting' | 'online' | 'offline' | 'unauthorized' | 'setup';
-
-const store = {
-  get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
-  set: (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* приватный режим */ } },
-  del: (k: string) => { try { localStorage.removeItem(k); } catch { /* приватный режим */ } },
-};
 
 /** Страница открыта с самого ПК (браузер) или внутри отдельного приложения. */
 const servedByPc = !isNative && location.protocol.startsWith('http') && !/tauri\.localhost|^localhost:5191$/.test(location.host);
@@ -50,23 +47,10 @@ function initialTarget(): Target | null {
   return null;
 }
 
-function deviceName(): string {
-  const saved = store.get('ft.device');
-  if (saved) return saved;
-  const ua = navigator.userAgent;
-  const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Windows/.test(ua) ? 'Windows' : 'Устройство';
-  const m = ua.match(/;\s*([^;)]+)\s+Build\//);
-  return m ? `${m[1]}` : os;
-}
-
-const vibrate = (ms: number | number[]) => {
-  if (isNative) { haptic(Array.isArray(ms) ? 'long' : ms > 10 ? 'tap' : 'tick'); return; }
-  try { navigator.vibrate?.(ms); } catch { /* нет вибро */ }
-};
-
 // ---------- приложение ----------
 
 export function App() {
+  const [prefs] = usePrefs();
   const [savedTarget, setTarget] = useState<Target | null>(initialTarget);
   // Приложение: если ПК доступен по USB-кабелю (adb reverse), подключаемся через него.
   const [usbTarget, setUsbTarget] = useState<Target | null>(null);
@@ -77,7 +61,7 @@ export function App() {
   const [pcName, setPcName] = useState('');
   const [pageId, setPageId] = useState<string>(() => store.get('ft.page') || '');
   const [toast, setToast] = useState<string | null>(null);
-  const [menu, setMenu] = useState(false);
+  const [settings, setSettings] = useState(false);
   const historyRef = useRef<string[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const profileRef = useRef<Profile | null>(null);
@@ -107,8 +91,11 @@ export function App() {
     setPageId(next);
   }, []);
 
+  // Поворот экрана — как выбрано в настройках телефона.
+  useEffect(() => { applyOrientation(getPrefs().orientation); }, []);
+
   // Экран не гаснет, пока открыт пульт. Браузер разрешает это только после касания.
-  const keepAwake = profile?.keepAwake ?? true;
+  const keepAwake = prefs.keepAwake ?? profile?.keepAwake ?? true;
   useEffect(() => {
     if (isNative) {
       nativeKeepAwake(keepAwake);
@@ -140,7 +127,7 @@ export function App() {
       let unauthorized = false;
       ws.onopen = () => {
         retry = 0;
-        ws.send(JSON.stringify({ t: 'hello', name: deviceName(), w: window.innerWidth, h: window.innerHeight }));
+        ws.send(JSON.stringify({ t: 'hello', name: getPrefs().deviceName, w: window.innerWidth, h: window.innerHeight }));
         ping = window.setInterval(() => ws.readyState === 1 && ws.send('{"t":"ping"}'), 15000);
       };
       ws.onmessage = (e) => {
@@ -216,16 +203,17 @@ export function App() {
     store.del('ft.target');
     setTarget(null);
     setProfile(null);
+    setSettings(false);
     setConn('setup');
   };
 
-  // Кнопка «Назад» Android листает страницы пульта назад.
-  const menuRef = useRef(false);
-  menuRef.current = menu;
+  // Кнопка «Назад» Android: закрывает настройки, листает страницы назад, потом сворачивает.
+  const settingsRef = useRef(false);
+  settingsRef.current = settings;
   useEffect(() => {
     let off: (() => void) | undefined;
     onBackButton(() => {
-      if (menuRef.current) { setMenu(false); return true; }
+      if (settingsRef.current) { setSettings(false); return true; }
       if (historyRef.current.length === 0) return false;
       goto('@back');
       return true;
@@ -256,25 +244,42 @@ export function App() {
     if (usbTarget && (conn === 'setup' || conn === 'unauthorized')) setConn('connecting');
   }, [usbTarget, conn]);
 
-  // Новая версия приложения на GitHub.
+  // Новая версия приложения на GitHub — точка на кнопке настроек.
   const [apkUpdate, setApkUpdate] = useState<string | null>(null);
   useEffect(() => { checkApkUpdate().then(setApkUpdate); }, []);
 
-  if (!target || conn === 'setup') return <Setup onConnect={connect} />;
-  if (conn === 'unauthorized') {
+  const via: 'USB' | 'Wi-Fi' | '' = !target ? '' : usbTarget || /^(localhost|127\.0\.0\.1)/.test(target.host) ? 'USB' : 'Wi-Fi';
+  const settingsView = settings && (
+    <Settings
+      conn={target ? { pcName, via, online: conn === 'online' } : null}
+      profileKeepAwake={profile?.keepAwake ?? true}
+      onClose={() => setSettings(false)}
+      onForget={isNative ? forget : undefined}
+      onRename={(name) => send({ t: 'hello', name })}
+    />
+  );
+
+  if (!target || conn === 'setup' || conn === 'unauthorized') {
     return (
-      <Setup
-        error="Код подключения устарел. Отсканируйте QR-код в программе на ПК заново."
-        onConnect={connect}
-      />
+      <>
+        <Setup
+          error={conn === 'unauthorized' ? 'Код подключения устарел. Отсканируйте QR-код в программе на ПК заново.' : undefined}
+          update={apkUpdate}
+          onConnect={connect}
+          onSettings={() => setSettings(true)}
+        />
+        {settingsView}
+      </>
     );
   }
 
+  const nav = profile?.nav ?? 'tabs';
   return (
     <div className={`pn-root ${conn === 'online' ? '' : 'is-offline'}`} style={page ? fillCss(page.background) : undefined}>
       {page && profile ? (
         <PageView
           page={page}
+          nav={nav}
           states={states}
           send={send}
           onSwipe={(dir) => profile.pages.length > 1 && goto(dir > 0 ? '@next' : '@prev')}
@@ -282,276 +287,37 @@ export function App() {
       ) : (
         <div className="pn-center"><div className="pn-spinner" /></div>
       )}
-      <BottomBar
+      <PageNav
         profile={profile}
         pageId={page?.id}
         online={conn === 'online'}
-        pcName={pcName}
-        via={usbTarget || /^(localhost|127\.0\.0\.1)/.test(target.host) ? 'USB' : ''}
+        via={via === 'USB' ? 'USB' : ''}
+        update={!!apkUpdate}
         onPage={(id) => goto(id)}
-        onMenu={isNative ? () => setMenu(true) : undefined}
-        update={apkUpdate}
+        onMenu={() => setSettings(true)}
       />
-      {conn !== 'online' && (
+      {conn !== 'online' && !settings && (
         <div className="pn-overlay">
           <div className="pn-spinner" />
           <div>{conn === 'connecting' ? 'Подключаюсь к ПК…' : 'Нет связи с ПК. Переподключаюсь…'}</div>
           <small>Проверьте, что Free Touch запущен и телефон в той же сети Wi-Fi</small>
-          {isNative && <button className="pn-link" onClick={forget}>Подключить другой ПК</button>}
-        </div>
-      )}
-      {menu && (
-        <div className="pn-sheet-bg" onClick={() => setMenu(false)}>
-          <div className="pn-sheet" onClick={(e) => e.stopPropagation()}>
-            <div className="pn-sheet-row"><span>Компьютер</span><b className="mono">{pcName || target.host}</b></div>
-            <div className="pn-sheet-row"><span>Подключение</span><b>{usbTarget ? 'USB-кабель' : 'Wi-Fi'}</b></div>
-            <div className="pn-sheet-row"><span>Версия приложения</span><b className="mono">{APP_VERSION}</b></div>
-            {apkUpdate && (
-              <button className="pn-btn primary" onClick={downloadApk}>Скачать версию {apkUpdate}</button>
-            )}
-            <button className="pn-btn" onClick={() => { setMenu(false); forget(); }}>Подключить другой ПК</button>
-            <button className="pn-btn ghost" onClick={() => setMenu(false)}>Закрыть</button>
+          <div className="pn-overlay-actions">
+            {isNative && <button className="pn-link" onClick={forget}>Подключить другой ПК</button>}
+            <button className="pn-link" onClick={() => setSettings(true)}>Настройки</button>
           </div>
         </div>
       )}
+      {settingsView}
       {toast && <div className="pn-toast">{toast}</div>}
-    </div>
-  );
-}
-
-// ---------- сетка ----------
-
-function useViewport() {
-  const [vp, setVp] = useState({ w: window.innerWidth, h: window.innerHeight });
-  useLayoutEffect(() => {
-    const on = () => setVp({ w: window.innerWidth, h: window.innerHeight });
-    window.addEventListener('resize', on);
-    return () => window.removeEventListener('resize', on);
-  }, []);
-  return vp;
-}
-
-const BAR = PANEL_BAR;
-const PAD = PANEL_PAD;
-
-function PageView({ page, states, send, onSwipe }: {
-  page: Page;
-  states: States;
-  send: (m: object) => void;
-  onSwipe: (dir: number) => void;
-}) {
-  const vp = useViewport();
-  const [now, setNow] = useState(new Date());
-  const clock = page.buttons.some((b) => usesClock(b.style.label));
-  useEffect(() => {
-    if (!clock) return;
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, [clock]);
-
-  // Телефон вертикально — вертикальная раскладка страницы, горизонтально — горизонтальная.
-  const orient: Orient = vp.h > vp.w ? 'portrait' : 'landscape';
-  const layout = useMemo(() => layoutOf(page, orient), [page, orient]);
-  const grid = computeGrid(vp.w - PAD * 2, vp.h - PAD * 2 - BAR, layout.cols, layout.rows, page.gap, page.square);
-
-  // свайп по пустому месту — соседняя страница
-  const swipe = useRef<{ x: number; y: number } | null>(null);
-
-  return (
-    <div
-      className="pn-stage"
-      style={{ height: vp.h - BAR }}
-      onPointerDown={(e) => {
-        const el = e.target as HTMLElement;
-        if (el === e.currentTarget || el.classList.contains('pn-grid')) swipe.current = { x: e.clientX, y: e.clientY };
-      }}
-      onPointerUp={(e) => {
-        const s = swipe.current;
-        swipe.current = null;
-        if (!s) return;
-        const dx = e.clientX - s.x;
-        if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(e.clientY - s.y) * 1.5) onSwipe(dx < 0 ? 1 : -1);
-      }}
-    >
-      <div
-        className="pn-grid"
-        style={{
-          width: grid.gw,
-          height: grid.gh,
-          gridTemplateColumns: `repeat(${layout.cols}, ${grid.cw}px)`,
-          gridTemplateRows: `repeat(${layout.rows}, ${grid.ch}px)`,
-          gap: page.gap,
-        }}
-      >
-        {page.buttons.map((b) => {
-          const pos = layout.pos[b.id];
-          if (!pos) return null;
-          return b.type === 'slider' ? (
-            <SliderCell key={b.id} b={b} pos={pos} vertical={pos.h * grid.ch >= pos.w * grid.cw} page={page} states={states} send={send} />
-          ) : (
-            <ButtonCell key={b.id} b={b} pos={pos} page={page} states={states} send={send} now={now} />
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-const LONG_MS = 500;
-
-function ButtonCell({ b, pos, page, states, send, now }: {
-  b: Button; pos: Pos; page: Page; states: States; send: (m: object) => void; now: Date;
-}) {
-  const [pressed, setPressed] = useState(false);
-  const down = useRef(false);
-  const longTimer = useRef<number | undefined>(undefined);
-  const longFired = useRef(false);
-  const hasLong = b.longActions.length > 0;
-  const msg = (t: string) => send({ t, page: page.id, button: b.id });
-
-  const release = (cancelled: boolean) => {
-    if (!down.current) return;
-    down.current = false;
-    setPressed(false);
-    if (hasLong) {
-      clearTimeout(longTimer.current);
-      // Короткое нажатие у кнопки с долгим срабатывает, когда палец отпустили.
-      if (!longFired.current && !cancelled) { msg('down'); msg('up'); }
-      return;
-    }
-    msg('up');
-  };
-
-  useEffect(() => () => clearTimeout(longTimer.current), []);
-
-  return (
-    <div
-      className={`ft-cell ${hasLong && pressed ? 'is-holding' : ''}`}
-      style={posStyle(pos)}
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        down.current = true;
-        setPressed(true);
-        vibrate(12);
-        if (hasLong) {
-          longFired.current = false;
-          longTimer.current = window.setTimeout(() => {
-            longFired.current = true;
-            vibrate([20, 40, 30]);
-                msg('long');
-          }, LONG_MS);
-        } else {
-          msg('down');
-        }
-      }}
-      onPointerUp={() => release(false)}
-      onPointerCancel={() => release(true)}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      <ButtonFace button={b} states={states} pressed={pressed} now={now} />
-      {hasLong && <span className="ft-long-mark" />}
-    </div>
-  );
-}
-
-function SliderCell({ b, pos, vertical, page, states, send }: { b: Button; pos: Pos; vertical: boolean; page: Page; states: States; send: (m: object) => void }) {
-  const key = sliderStateKey(b);
-  const remote = Number(states[key] ?? 0);
-  const [local, setLocal] = useState<number | null>(null);
-  const [dragging, setDragging] = useState(false);
-  const last = useRef(0);
-  const ref = useRef<HTMLDivElement>(null);
-
-  const valueAt = (e: React.PointerEvent) => {
-    const r = ref.current!.getBoundingClientRect();
-    const v = vertical ? (r.bottom - e.clientY) / r.height : (e.clientX - r.left) / r.width;
-    return Math.round(Math.max(0, Math.min(1, v)) * 100);
-  };
-  const push = (v: number, force = false) => {
-    setLocal(v);
-    const t = performance.now();
-    if (force || t - last.current > 40) {
-      last.current = t;
-      send({ t: 'slide', page: page.id, button: b.id, value: v });
-    }
-  };
-
-  // после отпускания держим своё значение, пока ПК не подтвердит
-  useEffect(() => {
-    if (local !== null && !ref.current?.dataset.drag && Math.abs(remote - local) <= 1) setLocal(null);
-  }, [remote, local]);
-
-  return (
-    <div
-      ref={ref}
-      className="ft-cell"
-      style={posStyle(pos)}
-      onPointerDown={(e) => {
-        e.currentTarget.setPointerCapture(e.pointerId);
-        ref.current!.dataset.drag = '1';
-        setDragging(true);
-        vibrate(8);
-        push(valueAt(e), true);
-      }}
-      onPointerMove={(e) => { if (ref.current?.dataset.drag) push(valueAt(e)); }}
-      onPointerUp={(e) => {
-        delete ref.current!.dataset.drag;
-        setDragging(false);
-        push(valueAt(e), true);
-        setTimeout(() => setLocal(null), 1200);
-      }}
-      onPointerCancel={() => { delete ref.current!.dataset.drag; setDragging(false); setLocal(null); }}
-    >
-      <SliderFace button={b} states={states} value={local ?? remote} dragging={dragging} vertical={vertical} />
-    </div>
-  );
-}
-
-// ---------- нижняя панель ----------
-
-function BottomBar({ profile, pageId, online, pcName, via, onPage, onMenu, update }: {
-  profile: Profile | null; pageId?: string; online: boolean; pcName: string; via: string; onPage: (id: string) => void;
-  onMenu?: () => void; update?: string | null;
-}) {
-  const [fs, setFs] = useState(!!document.fullscreenElement);
-  useEffect(() => {
-    const on = () => setFs(!!document.fullscreenElement);
-    document.addEventListener('fullscreenchange', on);
-    return () => document.removeEventListener('fullscreenchange', on);
-  }, []);
-  const toggleFs = async () => {
-    try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
-    } catch { /* браузер не разрешил */ }
-  };
-  return (
-    <div className="pn-bar" style={{ height: BAR }}>
-      <div className="pn-status"><span className={`pn-led ${online ? 'on' : ''}`} /><span className="pn-pc">{pcName}</span>{via && <span className="pn-via">{via}</span>}</div>
-      <div className="pn-pages">
-        {profile && profile.pageDots && profile.pages.length > 1 && profile.pages.map((p) => (
-          <button key={p.id} className={p.id === pageId ? 'on' : ''} onClick={() => onPage(p.id)} aria-label={p.name}>
-            <span />
-          </button>
-        ))}
-      </div>
-      {onMenu ? (
-        <button className="pn-fs" onClick={onMenu} aria-label="Меню">
-          {update && <span className="pn-upd-dot" />}
-          <Ph name="dots-three-vertical" size={20} />
-        </button>
-      ) : (
-        <button className="pn-fs" onClick={toggleFs} aria-label="Во весь экран">
-          <Ph name={fs ? 'corners-in' : 'corners-out'} size={18} />
-        </button>
-      )}
     </div>
   );
 }
 
 // ---------- первый запуск ----------
 
-function Setup({ onConnect, error }: { onConnect: (t: Target) => void; error?: string }) {
+function Setup({ onConnect, onSettings, error, update }: {
+  onConnect: (t: Target) => void; onSettings: () => void; error?: string; update: string | null;
+}) {
   const [link, setLink] = useState('');
   const [err, setErr] = useState(error ?? '');
   const [camera, setCamera] = useState(false);
@@ -562,6 +328,10 @@ function Setup({ onConnect, error }: { onConnect: (t: Target) => void; error?: s
   };
   return (
     <div className="pn-setup">
+      <button className="pn-setup-gear" onClick={onSettings} aria-label="Настройки">
+        {update && <span className="pn-upd-dot" />}
+        <Ph name="gear-six" size={22} />
+      </button>
       <img src="./icon-192.png" alt="" width="72" height="72" />
       <h1>Free Touch</h1>
       {isNative ? (
@@ -593,6 +363,7 @@ function Setup({ onConnect, error }: { onConnect: (t: Target) => void; error?: s
         </div>
       )}
       {err && <div className="pn-err">{err}</div>}
+      {update && <button className="pn-link" onClick={onSettings}>Вышла версия {update} — обновить</button>}
       {isNative && <small className="pn-ver mono">версия {APP_VERSION}</small>}
     </div>
   );

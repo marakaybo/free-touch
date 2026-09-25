@@ -1,7 +1,7 @@
 // Раскладки страницы: горизонтальная (основная) и вертикальная — для телефона в руке.
 // Клавиши одни и те же, у каждой раскладки свои сетка и места клавиш.
 import type { CSSProperties } from 'react';
-import type { Button, Page, Pos } from './types';
+import type { Button, NavStyle, Page, Pos, Rect } from './types';
 
 export type Orient = 'landscape' | 'portrait';
 
@@ -136,6 +136,10 @@ export function placeNew(page: Page, orient: Orient, b: Button, at: Pos) {
 export function removeButton(page: Page, id: string) {
   page.buttons = page.buttons.filter((b) => b.id !== id);
   if (page.portrait) delete page.portrait.pos[id];
+  if (page.free) {
+    delete page.free.landscape[id];
+    delete page.free.portrait[id];
+  }
 }
 
 /** Место для копии клавиши в текущей раскладке (по возможности того же размера). */
@@ -146,3 +150,91 @@ export function spotForCopy(page: Page, orient: Orient, p: Pos): Pos | null {
   const one = firstFreeIn(l);
   return one ? { ...one, w: 1, h: 1 } : null;
 }
+
+// ---------- свободная раскладка ----------
+
+/** Высота панели страниц внизу пульта для каждого стиля. */
+export const NAV_HEIGHT: Record<NavStyle, number> = { tabs: 58, icons: 50, dots: 34, none: 30 };
+
+/** Рабочая область пульта (без отступов и панели страниц) для экрана телефона. */
+export function workArea(screenW: number, screenH: number, nav: NavStyle) {
+  return { w: screenW - PANEL_PAD * 2, h: screenH - PANEL_PAD * 2 - NAV_HEIGHT[nav] };
+}
+
+/** Места клавиш сетки в процентах рабочей области — так свободная раскладка начинается с того же вида. */
+export function gridToRects(page: Page, orient: Orient, areaW: number, areaH: number): Record<string, Rect> {
+  const l = layoutOf(page, orient);
+  const g = computeGrid(areaW, areaH, l.cols, l.rows, page.gap, page.square);
+  const ox = (areaW - g.gw) / 2;
+  const oy = (areaH - g.gh) / 2;
+  const out: Record<string, Rect> = {};
+  for (const [id, p] of Object.entries(l.pos)) {
+    out[id] = {
+      x: ((ox + p.x * (g.cw + page.gap)) / areaW) * 100,
+      y: ((oy + p.y * (g.ch + page.gap)) / areaH) * 100,
+      w: ((p.w * g.cw + (p.w - 1) * page.gap) / areaW) * 100,
+      h: ((p.h * g.ch + (p.h - 1) * page.gap) / areaH) * 100,
+    };
+  }
+  return out;
+}
+
+const overlaps = (a: Rect, b: Rect) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+/** Свободное место под клавишу w×h (в процентах). Если всё занято — по центру. */
+export function findFreeRect(rects: Rect[], w: number, h: number): Rect {
+  for (let y = 0; y + h <= 100.01; y += 2) {
+    for (let x = 0; x + w <= 100.01; x += 2) {
+      const r = { x, y, w, h };
+      if (!rects.some((o) => overlaps(o, r))) return r;
+    }
+  }
+  return { x: (100 - w) / 2, y: (100 - h) / 2, w, h };
+}
+
+/** Места клавиш в свободной раскладке. Клавиши без места ставим в свободные места. */
+export function freeRectsOf(page: Page, orient: Orient, areaW: number, areaH: number): Record<string, Rect> {
+  const stored = page.free?.[orient] ?? {};
+  const out: Record<string, Rect> = {};
+  const missing: string[] = [];
+  for (const b of page.buttons) {
+    if (stored[b.id]) out[b.id] = stored[b.id];
+    else missing.push(b.id);
+  }
+  if (missing.length) {
+    const fromGrid = gridToRects(page, orient, areaW, areaH);
+    for (const id of missing) {
+      const g = fromGrid[id];
+      const r = g && !Object.values(out).some((o) => overlaps(o, g)) ? g : findFreeRect(Object.values(out), 20, (20 * areaW) / areaH);
+      out[id] = r;
+    }
+  }
+  return out;
+}
+
+/** Переключить страницу на свободную раскладку: клавиши остаются там же, где были в сетке. */
+export function toFree(page: Page, land: { w: number; h: number }, port: { w: number; h: number }) {
+  page.free = {
+    landscape: freeRectsOf(page, 'landscape', land.w, land.h),
+    portrait: freeRectsOf(page, 'portrait', port.w, port.h),
+  };
+  page.mode = 'free';
+}
+
+export function setRect(page: Page, orient: Orient, id: string, r: Rect) {
+  if (!page.free) page.free = { landscape: {}, portrait: {} };
+  page.free[orient][id] = {
+    x: Math.round(r.x * 10) / 10,
+    y: Math.round(r.y * 10) / 10,
+    w: Math.round(r.w * 10) / 10,
+    h: Math.round(r.h * 10) / 10,
+  };
+}
+
+export const rectStyle = (r: Rect): CSSProperties => ({
+  position: 'absolute',
+  left: `${r.x}%`,
+  top: `${r.y}%`,
+  width: `${r.w}%`,
+  height: `${r.h}%`,
+});

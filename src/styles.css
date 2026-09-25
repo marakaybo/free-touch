@@ -124,8 +124,9 @@ button.st:hover b { color: #fff; }
 .side-empty { color: var(--text-3); font-size: 12px; padding: 2px 8px; }
 
 /* ---------- холст ---------- */
-.canvas { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--niche); overflow: hidden; }
-.canvas-bar { position: absolute; top: 12px; left: 16px; right: 12px; display: flex; align-items: center; gap: 12px; }
+.canvas { position: relative; min-width: 0; min-height: 0; display: flex; flex-direction: column; background: var(--niche); overflow: hidden; }
+.canvas-bar { flex: none; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px 8px 14px; }
+.canvas-stage { flex: 1; min-height: 0; display: grid; place-items: center; }
 .canvas-title { font-weight: 600; }
 .canvas-bar .help { margin-left: auto; }
 .deck { position: relative; display: grid; place-items: center; border-radius: 18px; margin-top: 26px; transition: background .2s; box-shadow: 0 20px 50px -20px rgba(0,0,0,.8); }
@@ -349,7 +350,7 @@ textarea.inp { height: auto; padding: 8px 10px; resize: vertical; line-height: 1
 
 /* ---------- экран телефона на холсте ---------- */
 .phone {
-  position: relative; margin-top: 30px; border-radius: 22px; overflow: hidden;
+  position: relative; border-radius: 22px; overflow: hidden;
   box-shadow: 0 0 0 6px #07080B, 0 0 0 7px rgba(255,255,255,.07), 0 24px 60px -20px rgba(0,0,0,.85);
   transition: width .25s ease, height .25s ease;
 }
@@ -362,3 +363,24 @@ textarea.inp { height: auto; padding: 8px 10px; resize: vertical; line-height: 1
 .rot90 { transform: rotate(90deg); }
 .screen-note { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .canvas-warn { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); background: var(--raised); color: var(--text); padding: 8px 12px; border-radius: 8px; font-size: 12.5px; white-space: nowrap; }
+
+.orient-seg { width: auto; margin-left: 0; }
+.mode-seg .seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; }
+.orient-seg .seg button { padding: 0 10px; }
+.steppers { display: flex; gap: 10px; }
+.stepper { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 4px 0 10px; border-radius: 7px; background: var(--field); color: var(--text-2); font-size: 12px; }
+.stepper span { margin-right: 4px; }
+.stepper b { min-width: 18px; text-align: center; color: var(--text); font-weight: 500; }
+.stepper button { width: 22px; height: 22px; border-radius: 5px; display: grid; place-items: center; color: var(--text-2); }
+.stepper button:hover:not(:disabled) { background: var(--face); color: var(--text); }
+.canvas-bar .help { margin-left: auto; }
+.phone-nav { position: absolute; left: 0; transform-origin: 0 0; pointer-events: auto; }
+.phone-nav .pn-menu { opacity: .45; pointer-events: none; }
+.grid-area.is-free { outline: 1px dashed rgba(255,255,255,.06); outline-offset: 2px; }
+.guide { position: absolute; pointer-events: none; z-index: 5; background: var(--acc); }
+.guide.v { top: -4px; bottom: -4px; width: 1px; }
+.guide.h { left: -4px; right: -4px; height: 1px; }
+.xywh { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.tab-prev { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: color-mix(in srgb, var(--tc) 18%, var(--field)); font-weight: 500; }
+.tab-letter { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; background: var(--face); font-size: 12px; font-weight: 600; text-transform: uppercase; }
+.ed-cell.is-selected { z-index: 4; }

@@ -1,5 +1,5 @@
 import { PH } from './phosphor';
-import type { Action, ActiveRule, Button, ButtonStyle, Fill, IconRef, Page, Profile } from './types';
+import type { Action, ActiveRule, Button, ButtonStyle, Fill, IconRef, Page, Profile, Rect } from './types';
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 
@@ -93,6 +93,9 @@ export const newPage = (name: string, cols = 4, rows = 3): Page => ({
   buttons: [],
   portrait: null,
   square: false,
+  mode: 'grid',
+  free: null,
+  tab: { icon: { kind: 'none' }, color: ACCENT },
 });
 
 export const defaultAction = (type: Action['type']): Action => {
@@ -202,7 +205,9 @@ export function defaultProfile(): Profile {
     }),
   ];
 
-  return { version: 1, name: 'Мой пульт', accent: ACCENT, pageDots: true, keepAwake: true, home: stream.id, pages: [stream, media] };
+  stream.tab = { icon: icon('broadcast'), color: ACCENT };
+  media.tab = { icon: icon('music-notes'), color: '#0FA394' };
+  return { version: 1, name: 'Мой пульт', accent: ACCENT, pageDots: true, nav: 'tabs', keepAwake: true, home: stream.id, pages: [stream, media] };
 }
 
 // ---------- проверка профиля ----------
@@ -349,6 +354,17 @@ export function normalizeProfile(raw: any): Profile {
       }
       portrait = { cols: pc, rows: pr, pos };
     }
+    const rects = (m: any): Record<string, Rect> => {
+      const out: Record<string, Rect> = {};
+      for (const [id, r] of Object.entries(m ?? {}) as [string, any][]) {
+        if (!r) continue;
+        const n = (v: any, d: number) => (Number.isFinite(Number(v)) ? Math.min(100, Math.max(0, Number(v))) : d);
+        const w = Math.max(2, n(r.w, 20));
+        const h = Math.max(2, n(r.h, 20));
+        out[id] = { x: Math.min(100 - w, n(r.x, 0)), y: Math.min(100 - h, n(r.y, 0)), w, h };
+      }
+      return out;
+    };
     return {
       id: typeof pg.id === 'string' && pg.id ? pg.id : uid(),
       name: String(pg.name ?? 'Страница'),
@@ -359,6 +375,12 @@ export function normalizeProfile(raw: any): Profile {
       buttons,
       portrait,
       square: pg.square === true,
+      mode: pg.mode === 'free' ? 'free' : 'grid',
+      free: pg.free ? { landscape: rects(pg.free.landscape), portrait: rects(pg.free.portrait) } : null,
+      tab: {
+        icon: normIcon(pg.tab?.icon),
+        color: typeof pg.tab?.color === 'string' ? pg.tab.color : ACCENT,
+      },
     };
   });
   const home = pages.some((p) => p.id === raw.home) ? raw.home : pages[0].id;
@@ -367,6 +389,7 @@ export function normalizeProfile(raw: any): Profile {
     name: String(raw.name ?? 'Мой пульт'),
     accent: ACCENT,
     pageDots: raw.pageDots !== false,
+    nav: ['tabs', 'icons', 'dots', 'none'].includes(raw.nav) ? raw.nav : raw.pageDots === false ? 'none' : 'tabs',
     keepAwake: raw.keepAwake !== false,
     home,
     pages,
