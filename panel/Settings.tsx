@@ -115,6 +115,7 @@ export function Settings({ conn, profileKeepAwake, onClose, onForget, onRename }
             </label>
             <Row label="Вибрация при нажатии"><Switch on={prefs.haptics} onChange={(v) => setPrefs({ haptics: v })} /></Row>
             <Row label="Не гасить экран"><Switch on={prefs.keepAwake ?? profileKeepAwake} onChange={(v) => setPrefs({ keepAwake: v })} /></Row>
+            <Row label="Сам открывать страницу игры"><Switch on={prefs.autoPages} onChange={(v) => setPrefs({ autoPages: v })} /></Row>
             <div className="st-col">
               <span>Поворот экрана</span>
               <div className="st-seg">

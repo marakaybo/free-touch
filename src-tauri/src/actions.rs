@@ -2,7 +2,7 @@
 
 use crate::core::CoreRef;
 use crate::obs::{pct_to_db, Obs};
-use crate::{audio, input};
+use crate::{audio, input, sound, winsys};
 use serde::Deserialize;
 use serde_json::json;
 use std::sync::Arc;
@@ -56,6 +56,8 @@ pub enum Action {
         source: String,
         #[serde(default)]
         collection: String,
+        #[serde(default)]
+        filter: String,
     },
     Page {
         #[serde(default)]
@@ -65,8 +67,65 @@ pub enum Action {
         #[serde(default)]
         ms: u64,
     },
+    Sound {
+        #[serde(default)]
+        file: String,
+        #[serde(default = "hundred")]
+        volume: f64,
+        #[serde(default)]
+        device: String,
+        #[serde(default)]
+        mode: String,
+    },
+    StopSounds,
+    Device {
+        #[serde(default)]
+        input: bool,
+        #[serde(default)]
+        devices: Vec<String>,
+    },
+    Counter {
+        #[serde(default)]
+        name: String,
+        #[serde(default)]
+        op: String,
+        #[serde(default)]
+        value: i64,
+        #[serde(default)]
+        file: String,
+    },
+    Timer {
+        #[serde(default)]
+        name: String,
+        #[serde(default)]
+        op: String,
+    },
+    System {
+        #[serde(default)]
+        op: String,
+    },
+    Mouse {
+        #[serde(default)]
+        op: String,
+        #[serde(default)]
+        amount: i32,
+    },
+    Http {
+        #[serde(default)]
+        method: String,
+        #[serde(default)]
+        url: String,
+        #[serde(default)]
+        body: String,
+        #[serde(default)]
+        headers: String,
+    },
     #[serde(other)]
     Unknown,
+}
+
+fn hundred() -> f64 {
+    100.0
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -87,6 +146,26 @@ pub struct ButtonDef {
     pub actions: Vec<Action>,
     pub long_actions: Vec<Action>,
     pub slider: Option<SliderDef>,
+    /// Два состояния: нажатия по очереди выполняют actions и off_actions.
+    pub toggle: bool,
+    pub off_actions: Vec<Action>,
+}
+
+impl ButtonDef {
+    pub fn toggle_key(&self) -> String {
+        format!("toggle:{}", self.id)
+    }
+
+    /// Что выполнить при нажатии. Для кнопки с двумя состояниями — по очереди.
+    pub fn press_actions(&self, core: &CoreRef) -> Vec<Action> {
+        if !self.toggle {
+            return self.actions.clone();
+        }
+        let key = self.toggle_key();
+        let on = core.state_bool(&key);
+        core.set_state(&key, json!(!on));
+        if on { self.off_actions.clone() } else { self.actions.clone() }
+    }
 }
 
 #[derive(Deserialize, Clone, Debug, Default)]
@@ -184,9 +263,42 @@ async fn run_one(core: &CoreRef, obs: &Arc<Obs>, a: Action, client: Option<u64>,
             let core2 = core.clone();
             blocking(move || volume(&core2, &mode, value, &app)).await;
         }
-        Action::Obs { op, mode, scene, input, source, collection } => {
-            obs_action(obs, &op, &mode, &scene, &input, &source, &collection).await?;
+        Action::Obs { op, mode, scene, input, source, collection, filter } => {
+            obs_action(obs, &op, &mode, &scene, &input, &source, &collection, &filter).await?;
         }
+        Action::Sound { file, volume, device, mode } => {
+            let core = core.clone();
+            tokio::task::spawn_blocking(move || sound::play(&core, &file, volume, &device, &mode))
+                .await
+                .map_err(|e| e.to_string())??;
+        }
+        Action::StopSounds => sound::stop_all(core),
+        Action::Device { input, devices } => {
+            let name = tokio::task::spawn_blocking(move || winsys::switch_device(input, &devices))
+                .await
+                .map_err(|e| e.to_string())??;
+            core.set_state(if input { "system.input" } else { "system.output" }, json!(name));
+            // Громкость и выключение звука у нового устройства свои.
+            let core2 = core.clone();
+            blocking(move || audio::publish(&core2)).await;
+        }
+        Action::Counter { name, op, value, file } => {
+            if name.trim().is_empty() {
+                return Err("У счётчика нет имени".into());
+            }
+            let op = if op.is_empty() { "add".to_string() } else { op };
+            let value = if op == "add" && value == 0 { 1 } else { value };
+            core.counter(&name, &op, value, &file);
+        }
+        Action::Timer { name, op } => {
+            if name.trim().is_empty() {
+                return Err("У секундомера нет имени".into());
+            }
+            core.timer(&name, if op.is_empty() { "toggle" } else { &op });
+        }
+        Action::System { op } => system(&op).await?,
+        Action::Mouse { op, amount } => blocking(move || input::mouse(&op, amount)).await,
+        Action::Http { method, url, body, headers } => http(&method, &url, &body, &headers).await?,
         Action::Page { page } => {
             if let Some(c) = client {
                 core.send_to(c, &json!({ "t": "goto", "page": page }));
@@ -200,6 +312,9 @@ async fn run_one(core: &CoreRef, obs: &Arc<Obs>, a: Action, client: Option<u64>,
 
 fn volume(core: &CoreRef, mode: &str, value: f64, app: &str) {
     let app = app.trim();
+    if app == "@mic" {
+        return mic(core, mode, value);
+    }
     let cur = if app.is_empty() {
         audio::master().map(|(v, m)| (v as f64 * 100.0, m))
     } else {
@@ -228,6 +343,87 @@ fn volume(core: &CoreRef, mode: &str, value: f64, app: &str) {
     audio::publish(core);
 }
 
+/// Микрофон Windows (устройство записи по умолчанию).
+fn mic(core: &CoreRef, mode: &str, value: f64) {
+    let Some((cur, muted)) = winsys::mic() else { return };
+    let cur = cur as f64 * 100.0;
+    let step = if value > 0.0 { value } else { 5.0 };
+    match mode {
+        "set" => winsys::set_mic((value / 100.0) as f32),
+        "up" => winsys::set_mic(((cur + step) / 100.0) as f32),
+        "down" => winsys::set_mic(((cur - step) / 100.0) as f32),
+        "mute" => winsys::set_mic_mute(true),
+        "unmute" => winsys::set_mic_mute(false),
+        _ => winsys::set_mic_mute(!muted),
+    }
+    winsys::publish_audio(core);
+}
+
+fn shutdown_cmd(args: &[&str]) -> Result<(), String> {
+    let mut cmd = std::process::Command::new("shutdown");
+    cmd.args(args);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(0x0800_0000);
+    }
+    cmd.spawn().map(|_| ()).map_err(|e| e.to_string())
+}
+
+async fn system(op: &str) -> Result<(), String> {
+    match op {
+        "lock" => blocking(winsys::lock).await,
+        "sleep" => blocking(winsys::sleep).await,
+        "monitorOff" => blocking(winsys::monitor_off).await,
+        "shutdown" => shutdown_cmd(&["/s", "/t", "0"])?,
+        "restart" => shutdown_cmd(&["/r", "/t", "0"])?,
+        "logoff" => shutdown_cmd(&["/l"])?,
+        _ => {}
+    }
+    Ok(())
+}
+
+async fn http(method: &str, url: &str, body: &str, headers: &str) -> Result<(), String> {
+    let url = url.trim();
+    if !(url.starts_with("http://") || url.starts_with("https://")) {
+        return Err("Адрес должен начинаться с http:// или https://".into());
+    }
+    if rustls::crypto::CryptoProvider::get_default().is_none() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+    }
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(10))
+        .user_agent(concat!("FreeTouch/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(|e| e.to_string())?;
+    let m = reqwest::Method::from_bytes(method.trim().to_uppercase().as_bytes()).unwrap_or(reqwest::Method::GET);
+    let has_body = !body.trim().is_empty() && m != reqwest::Method::GET;
+    let mut req = client.request(m, url);
+    let mut typed = false;
+    for line in headers.lines() {
+        if let Some((k, v)) = line.split_once(':') {
+            typed |= k.trim().eq_ignore_ascii_case("content-type");
+            req = req.header(k.trim(), v.trim());
+        }
+    }
+    if has_body {
+        if !typed {
+            let t = body.trim_start();
+            let ct = if t.starts_with('{') || t.starts_with('[') { "application/json" } else { "text/plain; charset=utf-8" };
+            req = req.header("Content-Type", ct);
+        }
+        req = req.body(body.to_string());
+    }
+    let r = req.send().await.map_err(|e| {
+        if e.is_timeout() { "Адрес не ответил за 10 секунд".to_string() } else { "Запрос не прошёл: нет связи с адресом".to_string() }
+    })?;
+    if !r.status().is_success() {
+        return Err(format!("Адрес ответил ошибкой {}", r.status().as_u16()));
+    }
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
 async fn obs_action(
     obs: &Arc<Obs>,
     op: &str,
@@ -236,6 +432,7 @@ async fn obs_action(
     input: &str,
     source: &str,
     collection: &str,
+    filter: &str,
 ) -> Result<(), String> {
     let pick = |base: &str| match mode {
         "start" => format!("Start{base}"),
@@ -274,6 +471,19 @@ async fn obs_action(
                 .await
                 .map(|_| ())
         }
+        "filter" => {
+            let enabled = match mode {
+                "start" => true,
+                "stop" => false,
+                _ => {
+                    let cur = obs.call("GetSourceFilter", json!({ "sourceName": source, "filterName": filter })).await?;
+                    !cur["filterEnabled"].as_bool().unwrap_or(false)
+                }
+            };
+            obs.call("SetSourceFilterEnabled", json!({ "sourceName": source, "filterName": filter, "filterEnabled": enabled }))
+                .await
+                .map(|_| ())
+        }
         _ => Ok(()),
     }
 }
@@ -284,6 +494,10 @@ pub async fn slide(core: &CoreRef, obs: &Arc<Obs>, t: &SliderTarget, value: f64)
     match t.kind.as_str() {
         "obsInput" => {
             let _ = obs.call("SetInputVolume", json!({ "inputName": t.input, "inputVolumeDb": pct_to_db(v) })).await;
+        }
+        "mic" => {
+            blocking(move || winsys::set_mic((v / 100.0) as f32)).await;
+            core.set_state("system.micVolume", json!(v.round() as i64));
         }
         "app" => {
             let app = t.app.clone();
@@ -300,7 +514,7 @@ pub async fn slide(core: &CoreRef, obs: &Arc<Obs>, t: &SliderTarget, value: f64)
 /// Кнопку нажали: если в ней есть удерживаемые клавиши, заводим запись заранее,
 /// пока действия ещё не начали выполняться.
 pub fn arm_hold(core: &CoreRef, client: u64, button: &ButtonDef) {
-    if button.actions.iter().any(|a| matches!(a, Action::Hotkey { hold: true, .. })) {
+    if !button.toggle && button.actions.iter().any(|a| matches!(a, Action::Hotkey { hold: true, .. })) {
         core.held.lock().unwrap().insert((client, button.id.clone()), Vec::new());
     }
 }

@@ -63,6 +63,8 @@ export function App() {
   const [toast, setToast] = useState<string | null>(null);
   const [settings, setSettings] = useState(false);
   const historyRef = useRef<string[]>([]);
+  /** Откуда пульт ушёл на страницу игры — туда он вернётся, когда игру свернут. */
+  const autoFromRef = useRef<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const profileRef = useRef<Profile | null>(null);
   profileRef.current = profile;
@@ -137,7 +139,18 @@ export function App() {
           case 'profile': setProfile(normalizeProfile(m.profile)); break;
           case 'states': setStates(m.states); break;
           case 'state': setStates((s) => ({ ...s, [m.key]: m.value })); break;
-          case 'goto': goto(m.page); break;
+          case 'goto':
+            if (!m.auto) { goto(m.page); break; }
+            if (!getPrefs().autoPages) break;
+            if (m.page === '@autoback') {
+              // Возвращаемся, только если человек сам не ушёл со страницы игры.
+              if (autoFromRef.current && pageRef.current === m.from) goto(autoFromRef.current);
+              autoFromRef.current = null;
+            } else if (profileRef.current?.pages.some((p) => p.id === m.page) && pageRef.current !== m.page) {
+              if (!autoFromRef.current) autoFromRef.current = pageRef.current;
+              goto(m.page);
+            }
+            break;
           case 'toast': setToast(m.text); break;
           case 'unauthorized': unauthorized = true; setConn('unauthorized'); break;
         }

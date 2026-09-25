@@ -74,6 +74,8 @@ export const newButton = (x: number, y: number, patch: Partial<Button> = {}): Bu
   style: baseStyle(),
   actions: [],
   longActions: [],
+  toggle: false,
+  offActions: [],
   active: null,
   slider: null,
   ...patch,
@@ -96,6 +98,7 @@ export const newPage = (name: string, cols = 4, rows = 3): Page => ({
   mode: 'grid',
   free: null,
   tab: { icon: { kind: 'none' }, color: ACCENT },
+  apps: [],
 });
 
 export const defaultAction = (type: Action['type']): Action => {
@@ -106,9 +109,17 @@ export const defaultAction = (type: Action['type']): Action => {
     case 'command': return { type, command: '' };
     case 'media': return { type, key: 'playPause' };
     case 'volume': return { type, mode: 'toggleMute', value: 5, app: '' };
-    case 'obs': return { type, op: 'scene', mode: 'toggle', scene: '', input: '', source: '', collection: '' };
+    case 'obs': return { type, op: 'scene', mode: 'toggle', scene: '', input: '', source: '', collection: '', filter: '' };
     case 'page': return { type, page: '@back' };
     case 'delay': return { type, ms: 300 };
+    case 'sound': return { type, file: '', volume: 100, device: '', mode: 'restart' };
+    case 'stopSounds': return { type };
+    case 'device': return { type, input: false, devices: [] };
+    case 'counter': return { type, name: 'Смерти', op: 'add', value: 1, file: '' };
+    case 'timer': return { type, name: 'Таймер', op: 'toggle' };
+    case 'system': return { type, op: 'lock' };
+    case 'mouse': return { type, op: 'left', amount: 3 };
+    case 'http': return { type, method: 'GET', url: '', body: '', headers: '' };
   }
 };
 
@@ -128,12 +139,17 @@ export const suggestActive = (a: Action): ActiveRule | null => {
       case 'virtualcam': return { state: 'obs.virtualcam', equals: '', style: {}, dot: true };
       case 'mute': return a.input ? { state: `obs.mute:${a.input}`, equals: '', style: offStyle('microphone-slash'), dot: false } : null;
       case 'source': return a.scene && a.source ? { state: `obs.source:${a.scene}/${a.source}`, equals: '', style: {}, dot: true } : null;
+      case 'filter': return a.source && a.filter ? { state: `obs.filter:${a.source}/${a.filter}`, equals: '', style: {}, dot: true } : null;
       default: return null;
     }
   }
   if (a.type === 'volume' && (a.mode === 'toggleMute' || a.mode === 'mute')) {
+    if (a.app === '@mic') return { state: 'system.micMuted', equals: '', style: offStyle('microphone-slash'), dot: false };
     return { state: a.app ? `app.muted:${a.app.toLowerCase()}` : 'system.muted', equals: '', style: offStyle('speaker-x'), dot: false };
   }
+  if (a.type === 'sound' && a.file) return { state: `sound:${a.file.trim()}`, equals: '', style: {}, dot: true };
+  if (a.type === 'timer' && a.name) return { state: `timer:${a.name.trim()}`, equals: '', style: {}, dot: true };
+  if (a.type === 'device' && a.devices.length === 1) return { state: a.input ? 'system.input' : 'system.output', equals: a.devices[0], style: {}, dot: true };
   return null;
 };
 
@@ -220,7 +236,10 @@ const int = (v: any, min: number, max: number, def: number) => {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
 };
 
-const ACTION_TYPES: Action['type'][] = ['hotkey', 'text', 'open', 'command', 'media', 'volume', 'obs', 'page', 'delay'];
+const ACTION_TYPES: Action['type'][] = [
+  'hotkey', 'text', 'open', 'command', 'media', 'volume', 'obs', 'page', 'delay',
+  'sound', 'stopSounds', 'device', 'counter', 'timer', 'system', 'mouse', 'http',
+];
 
 function normActions(list: any): Action[] {
   if (!Array.isArray(list)) return [];
@@ -334,6 +353,8 @@ export function normalizeProfile(raw: any): Profile {
         style: normStyle(b.style),
         actions: normActions(b.actions),
         longActions: normActions(b.longActions),
+        toggle: b.toggle === true && type === 'button',
+        offActions: normActions(b.offActions),
         active: normActive(b.active),
         slider: type === 'slider'
           ? { target: { kind: 'master', input: '', app: '' }, vertical: true, color: ACCENT, ...(b.slider ?? {}) }
@@ -381,6 +402,7 @@ export function normalizeProfile(raw: any): Profile {
         icon: normIcon(pg.tab?.icon),
         color: typeof pg.tab?.color === 'string' ? pg.tab.color : ACCENT,
       },
+      apps: Array.isArray(pg.apps) ? pg.apps.filter((a: unknown) => typeof a === 'string' && a.trim()).map((a: string) => a.trim().toLowerCase()) : [],
     };
   });
   const home = pages.some((p) => p.id === raw.home) ? raw.home : pages[0].id;

@@ -129,7 +129,13 @@ function Sidebar() {
     const src = structuredClone(profile.pages[i]);
     src.id = uid();
     src.name = `${src.name} (копия)`;
-    src.buttons.forEach((b) => { b.id = uid(); });
+    const ids: Record<string, string> = {};
+    src.buttons.forEach((b) => { const n = uid(); ids[b.id] = n; b.id = n; });
+    const remap = <T,>(m: Record<string, T>) => Object.fromEntries(Object.entries(m).filter(([k]) => ids[k]).map(([k, v]) => [ids[k], v]));
+    if (src.portrait) src.portrait.pos = remap(src.portrait.pos);
+    if (src.free) src.free = { landscape: remap(src.free.landscape), portrait: remap(src.free.portrait) };
+    // Страница-копия не должна перехватывать автопереход у оригинала.
+    src.apps = [];
     update((pr) => { pr.pages.splice(i + 1, 0, src); });
     setPageId(src.id);
   };
@@ -156,7 +162,7 @@ function Sidebar() {
               {p.name || 'Без названия'}
               {profile.home === p.id && <span title="Главная — открывается первой"><Ph name="house" size={13} /></span>}
             </span>
-            <span className="page-meta mono">{p.cols}×{p.rows}  {p.buttons.length} кл.</span>
+            <span className="page-meta mono">{p.mode === 'free' ? 'свободно' : `${p.cols}×${p.rows}`}  {p.buttons.length} кл.{p.apps.length > 0 && <span title={`Открывается сама: ${p.apps.join(', ')}`}> <Ph name="lightning" size={11} /></span>}</span>
             <span className="page-tools" onClick={(e) => e.stopPropagation()}>
               <button className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} title="Выше"><Ph name="arrow-up" size={13} /></button>
               <button className="icon-btn" disabled={i === profile.pages.length - 1} onClick={() => move(i, 1)} title="Ниже"><Ph name="arrow-down" size={13} /></button>

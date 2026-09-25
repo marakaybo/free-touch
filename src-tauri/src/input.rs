@@ -162,6 +162,31 @@ mod imp {
             std::thread::sleep(std::time::Duration::from_millis(5));
         }
     }
+
+    fn mouse_input(flags: MOUSE_EVENT_FLAGS, data: i32) -> INPUT {
+        INPUT {
+            r#type: INPUT_MOUSE,
+            Anonymous: INPUT_0 { mi: MOUSEINPUT { dx: 0, dy: 0, mouseData: data as u32, dwFlags: flags, time: 0, dwExtraInfo: 0 } },
+        }
+    }
+
+    /// Щелчок или прокрутка там, где сейчас стоит курсор.
+    pub fn mouse(op: &str, amount: i32) {
+        let click = |d: MOUSE_EVENT_FLAGS, u: MOUSE_EVENT_FLAGS| vec![mouse_input(d, 0), mouse_input(u, 0)];
+        let v = match op {
+            "right" => click(MOUSEEVENTF_RIGHTDOWN, MOUSEEVENTF_RIGHTUP),
+            "middle" => click(MOUSEEVENTF_MIDDLEDOWN, MOUSEEVENTF_MIDDLEUP),
+            "double" => {
+                let mut v = click(MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP);
+                v.extend(click(MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP));
+                v
+            }
+            "scrollUp" => vec![mouse_input(MOUSEEVENTF_WHEEL, 120 * amount.max(1))],
+            "scrollDown" => vec![mouse_input(MOUSEEVENTF_WHEEL, -120 * amount.max(1))],
+            _ => click(MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP),
+        };
+        send(&v);
+    }
 }
 
 #[cfg(not(windows))]
@@ -169,9 +194,10 @@ mod imp {
     pub fn keys_down(_: &[String]) {}
     pub fn keys_up(_: &[String]) {}
     pub fn type_text(_: &str) {}
+    pub fn mouse(_: &str, _: i32) {}
 }
 
-pub use imp::{keys_down, keys_up, type_text};
+pub use imp::{keys_down, keys_up, mouse, type_text};
 
 /// Нажать и отпустить комбинацию. Пауза нужна: OBS и игры опрашивают
 /// клавиатуру не на каждом событии и мгновенное нажатие пропускают.

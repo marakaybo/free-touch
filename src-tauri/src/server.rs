@@ -241,7 +241,8 @@ fn handle(ctx: &Ctx, id: u64, text: &str) {
             actions::arm_hold(core, id, &b);
             let ctx = ctx.clone();
             tokio::spawn(async move {
-                let errs = actions::run(&ctx.core, &ctx.obs, b.actions, Some(id), Some(button)).await;
+                let list = b.press_actions(&ctx.core);
+                let errs = actions::run(&ctx.core, &ctx.obs, list, Some(id), Some(button)).await;
                 if let Some(e) = errs.first() {
                     ctx.core.send_to(id, &json!({ "t": "toast", "text": e }));
                 }

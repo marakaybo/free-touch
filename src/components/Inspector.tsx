@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { DIM_TEXT, KEY_COLORS, LIVE_STATES, PAGE_BACKGROUNDS, icon as phIcon, keyColorStyle, suggestActive, withStyle, newButton, newPage } from '../../shared/defaults';
 import { BRANDS } from '../../shared/brands';
 import { IconView, Ph, fillCss } from '../../shared/render';
 import type { Action, ActiveRule, Button, ButtonStyle, Fill, NavStyle, SliderTarget } from '../../shared/types';
 import { api } from '../api';
 import { useStore } from '../store';
-import { ActionCard, AddActionMenu } from './ActionEditor';
+import { ActionCard, AddActionMenu, soundName } from './ActionEditor';
 import { freeRectsOf, layoutOf, removeButton, setGrid, setRect } from '../../shared/layout';
 import { duplicate, useAreas } from './Canvas';
 import { IconPicker } from './IconPicker';
@@ -56,7 +56,7 @@ function ButtonInspector({ b }: { b: Button }) {
       <div className="tabs">
         <button className={tab === 'look' ? 'on' : ''} onClick={() => setTab('look')}>Вид</button>
         <button className={tab === 'actions' ? 'on' : ''} onClick={() => setTab('actions')}>
-          {b.type === 'slider' ? 'Управляет' : 'Действия'}{b.type === 'button' && b.actions.length + b.longActions.length > 0 && <i>{b.actions.length + b.longActions.length}</i>}
+          {b.type === 'slider' ? 'Управляет' : 'Действия'}{b.type === 'button' && b.actions.length + b.longActions.length + (b.toggle ? b.offActions.length : 0) > 0 && <i>{b.actions.length + b.longActions.length + (b.toggle ? b.offActions.length : 0)}</i>}
         </button>
         {b.type === 'button' && <button className={tab === 'active' ? 'on' : ''} onClick={() => setTab('active')}>Подсветка{b.active && <i>●</i>}</button>}
       </div>
@@ -73,11 +73,16 @@ type Up = (fn: (x: Button) => void, merge?: string) => void;
 
 const LABEL_VARS = [
   { v: '{time}', t: 'Время' },
+  { v: '{date}', t: 'Дата' },
   { v: '{obs.scene}', t: 'Сцена OBS' },
+  { v: '{obs.streamTime}', t: 'Время эфира' },
+  { v: '{obs.recordTime}', t: 'Время записи' },
+  { v: '{media.title}', t: 'Трек' },
+  { v: '{media.artist}', t: 'Исполнитель' },
   { v: '{system.volume}', t: 'Громкость' },
+  { v: '{system.micVolume}', t: 'Микрофон %' },
   { v: '{system.cpu}', t: 'ЦП %' },
   { v: '{system.ram}', t: 'ОЗУ %' },
-  { v: '{date}', t: 'Дата' },
 ];
 
 /** Свободная раскладка: точное место и размер клавиши в процентах экрана. */
@@ -186,11 +191,20 @@ function LookTab({ b, up }: { b: Button; up: Up }) {
   );
 }
 
+type ListKey = 'actions' | 'offActions' | 'longActions';
+
 function ActionsTab({ b, up }: { b: Button; up: Up }) {
   const [result, setResult] = useState<string | null>(null);
-  const [which, setWhich] = useState<'actions' | 'longActions'>('actions');
+  const [whichRaw, setWhich] = useState<ListKey>('actions');
+  const which: ListKey = whichRaw === 'offActions' && !b.toggle ? 'actions' : whichRaw;
   const main = which === 'actions';
   const list = b[which];
+  const toggleKey = `toggle:${b.id}`;
+  const setToggle = (on: boolean) => up((x) => {
+    x.toggle = on;
+    if (on && !x.active) x.active = { state: toggleKey, equals: '', style: {}, dot: true };
+    if (!on && x.active?.state === toggleKey) x.active = null;
+  });
   const change = (i: number, a: Action) => up((x) => {
     const old = x[which][i];
     x[which][i] = a;
@@ -198,19 +212,24 @@ function ActionsTab({ b, up }: { b: Button; up: Up }) {
   }, `${which}${i}`);
   return (
     <>
+      <Toggle checked={b.toggle} onChange={setToggle} label="Два состояния: нажатия по очереди включают и выключают" />
+      {b.toggle && <span className="fld-hint">Первое нажатие выполняет «Включение», второе — «Выключение». Светодиод показывает, какое сейчас.</span>}
       <Seg
         value={which}
         onChange={setWhich}
         options={[
-          { v: 'actions', label: <>Нажатие{b.actions.length > 0 && <em className="seg-n">{b.actions.length}</em>}</> },
-          { v: 'longActions', label: <>Долгое нажатие{b.longActions.length > 0 && <em className="seg-n">{b.longActions.length}</em>}</> },
+          { v: 'actions', label: <>{b.toggle ? 'Включение' : 'Нажатие'}{b.actions.length > 0 && <em className="seg-n">{b.actions.length}</em>}</> },
+          ...(b.toggle ? [{ v: 'offActions' as ListKey, label: <>Выключение{b.offActions.length > 0 && <em className="seg-n">{b.offActions.length}</em>}</> }] : []),
+          { v: 'longActions', label: <>Долгое{b.longActions.length > 0 && <em className="seg-n">{b.longActions.length}</em>}</> },
         ]}
       />
       {list.length === 0 && (
         <div className="empty">
           {main
             ? 'Кнопка пока ничего не делает. Добавьте действие — их можно выстроить цепочкой, они выполнятся по порядку.'
-            : 'Второе действие на той же кнопке: сработает, если подержать палец полсекунды. Например, коротко — сменить сцену, долго — выключить микрофон.'}
+            : which === 'offActions'
+              ? 'Что сделать при втором нажатии. Например, первое включает фильтр голоса, второе — выключает и пишет в чат.'
+              : 'Второе действие на той же кнопке: сработает, если подержать палец полсекунды. Например, коротко — сменить сцену, долго — выключить микрофон.'}
         </div>
       )}
       {!main && list.length > 0 && b.actions.length > 0 && (
@@ -233,7 +252,7 @@ function ActionsTab({ b, up }: { b: Button; up: Up }) {
         />
       ))}
       <AddActionMenu onAdd={(a) => up((x) => {
-        if (!main && a.type === 'hotkey') a.hold = false;
+        if ((!main || x.toggle) && a.type === 'hotkey') a.hold = false;
         x[which].push(a);
         if (main) autoActive(x, null, a);
       })} />
@@ -264,8 +283,18 @@ function autoActive(x: Button, old: Action | null, a: Action) {
 
 function autoLabel(x: Button, a: Action) {
   const generic = ['', 'Кнопка'];
-  if (a.type !== 'obs') return;
-  const name = a.op === 'scene' ? a.scene : a.op === 'collection' ? a.collection : a.op === 'mute' ? a.input : a.op === 'source' ? a.source : '';
+  let name = '';
+  if (a.type === 'obs') name = a.op === 'scene' ? a.scene : a.op === 'collection' ? a.collection : a.op === 'mute' ? a.input : a.op === 'source' ? a.source : a.op === 'filter' ? a.filter : '';
+  else if (a.type === 'sound' && a.file) name = soundName(a.file);
+  else if (a.type === 'counter' && a.name && a.op === 'add' && a.value > 0) {
+    // Счётчик сразу показывает число.
+    if (generic.includes(x.style.label)) x.style.label = `${a.name}: {counter:${a.name}}`;
+    return;
+  } else if (a.type === 'timer' && a.name) {
+    if (generic.includes(x.style.label)) x.style.label = `{timer:${a.name}}`;
+    return;
+  } else if (a.type === 'device' && a.devices.length === 1) name = a.devices[0].replace(/\s*\(.*\)$/, '');
+  else return;
   if (name && (generic.includes(x.style.label) || x.style.label.length < name.length && name.startsWith(x.style.label))) x.style.label = name;
 }
 
@@ -282,9 +311,9 @@ function SliderTab({ b, up }: { b: Button; up: Up }) {
           value={t.kind}
           onChange={(kind) => {
             if (kind === 'app') api.audioApps().then(setApps);
-            setTarget(kind === 'master' ? { kind, input: '', app: '' } : kind === 'obsInput' ? { kind, input: obs.audioInputs[0] ?? '', app: '' } : { kind, input: '', app: '' });
+            setTarget(kind === 'obsInput' ? { kind, input: obs.audioInputs[0] ?? '', app: '' } : { kind, input: '', app: '' } as SliderTarget);
           }}
-          options={[{ v: 'master', label: 'Громкость ПК' }, { v: 'app', label: 'Программа' }, { v: 'obsInput', label: 'Вход OBS' }]}
+          options={[{ v: 'master', label: 'Громкость ПК' }, { v: 'mic', label: 'Микрофон' }, { v: 'app', label: 'Программа' }, { v: 'obsInput', label: 'Вход OBS' }]}
         />
         {t.kind === 'obsInput' && (
           <Field label="Вход OBS"><Text value={t.input} onChange={(input) => setTarget({ kind: 'obsInput', input, app: '' })} list={obs.audioInputs} placeholder="Микрофон" /></Field>
@@ -375,15 +404,15 @@ function PageInspector() {
     const list: Button[] = [];
     let i = 0;
     for (const sc of obs.scenes) {
-      const a: Action = { type: 'obs', op: 'scene', mode: 'toggle', scene: sc, input: '', source: '', collection: '' };
+      const a: Action = { type: 'obs', op: 'scene', mode: 'toggle', scene: sc, input: '', source: '', collection: '', filter: '' };
       list.push(newButton(0, 0, { ...placeFix(i++, cols), style: withStyle({ label: sc, labelPos: 'center', fontSize: 15, icon: { kind: 'none' } }), actions: [a], active: suggestActive(a) }));
     }
     const mic = obs.audioInputs.find((n) => /mic|микро/i.test(n)) ?? obs.audioInputs[0];
     const extra: [string, string, Action][] = [
-      ['Эфир', 'Radio', { type: 'obs', op: 'stream', mode: 'toggle', scene: '', input: '', source: '', collection: '' }],
-      ['Запись', 'Circle', { type: 'obs', op: 'record', mode: 'toggle', scene: '', input: '', source: '', collection: '' }],
+      ['Эфир', 'Radio', { type: 'obs', op: 'stream', mode: 'toggle', scene: '', input: '', source: '', collection: '', filter: '' }],
+      ['Запись', 'Circle', { type: 'obs', op: 'record', mode: 'toggle', scene: '', input: '', source: '', collection: '', filter: '' }],
     ];
-    if (mic) extra.push([mic, 'Mic', { type: 'obs', op: 'mute', mode: 'toggle', scene: '', input: mic, source: '', collection: '' }]);
+    if (mic) extra.push([mic, 'Mic', { type: 'obs', op: 'mute', mode: 'toggle', scene: '', input: mic, source: '', collection: '', filter: '' }]);
     for (const [label, icon, a] of extra) {
       list.push(newButton(0, 0, { ...placeFix(i++, cols), style: withStyle({ label, icon: phIcon(icon) }), actions: [a], active: suggestActive(a) }));
     }
@@ -422,6 +451,7 @@ function PageInspector() {
           </button>
           {tabIcons && <IconPicker value={page.tab.icon} onChange={(i) => updatePage((p) => { p.tab.icon = i; })} />}
         </Section>
+        <AutoAppsSection />
         {page.mode === 'free' ? (
           <Section title="Свободная раскладка">
             <span className="fld-hint">
@@ -480,6 +510,49 @@ function PageInspector() {
         </Section>
       </div>
     </>
+  );
+}
+
+/** Страница открывается сама, когда на ПК переходят в выбранную программу. */
+function AutoAppsSection() {
+  const { page, updatePage, states } = useStore();
+  const [apps, setApps] = useState<string[]>([]);
+  const [draft, setDraft] = useState('');
+  useEffect(() => { api.windowApps().then(setApps); }, []);
+  const add = (v: string) => {
+    const exe = v.trim().toLowerCase();
+    if (!exe) return;
+    const name = /\.exe$/.test(exe) ? exe : `${exe}.exe`;
+    if (!page.apps.includes(name)) updatePage((p) => { p.apps.push(name); });
+    setDraft('');
+  };
+  const other = apps.filter((a) => !page.apps.includes(a) && !/^(explorer|free-touch|textinputhost|applicationframehost|systemsettings|searchhost|shellexperiencehost)\.exe$/.test(a));
+  const cur = typeof states['system.app'] === 'string' ? states['system.app'] as string : '';
+  return (
+    <Section title="Открывать сама с игрой">
+      <span className="fld-hint">
+        Когда на ПК переходишь в эту программу, пульт сам открывает страницу. Вышел — возвращается туда, где был.
+      </span>
+      {page.apps.length > 0 && (
+        <div className="chips">
+          {page.apps.map((a) => (
+            <button key={a} className="chip on" title="Убрать" onClick={() => updatePage((p) => { p.apps = p.apps.filter((x) => x !== a); })}>
+              {a} <Ph name="x" size={11} />
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="two-wide">
+        <Text value={draft} onChange={setDraft} list={other} placeholder="minecraft.exe" mono />
+        <button className="btn" disabled={!draft.trim()} onClick={() => add(draft)}>Добавить</button>
+      </div>
+      {other.length > 0 && (
+        <div className="chips">
+          {other.slice(0, 10).map((a) => <button key={a} className="chip" onClick={() => add(a)}>+ {a.replace(/\.exe$/, '')}</button>)}
+        </div>
+      )}
+      {cur && <span className="fld-hint">Сейчас на переднем плане: <span className="mono">{cur}</span></span>}
+    </Section>
   );
 }
 

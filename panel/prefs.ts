@@ -19,6 +19,8 @@ export interface Prefs {
   keepAwake: boolean | null;
   /** Поворот экрана. */
   orientation: OrientLock;
+  /** Сам открывать страницу активной на ПК программы. */
+  autoPages: boolean;
 }
 
 function defaultName(): string {
@@ -36,6 +38,7 @@ function load(): Prefs {
     haptics: saved.haptics !== false,
     keepAwake: typeof saved.keepAwake === 'boolean' ? saved.keepAwake : null,
     orientation: saved.orientation === 'portrait' || saved.orientation === 'landscape' ? saved.orientation : 'auto',
+    autoPages: saved.autoPages !== false,
   };
 }
 

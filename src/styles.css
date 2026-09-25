@@ -172,6 +172,7 @@ kbd, .kbd {
 .tabs button.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--acc); }
 .tabs i { font-style: normal; font-family: var(--mono); font-size: 11px; color: var(--text-3); }
 .insp-body { flex: 1; overflow-y: auto; padding: 8px 16px 24px; display: flex; flex-direction: column; gap: 8px; }
+.insp-body > * { flex-shrink: 0; }
 
 .sec { padding: 12px 0 14px; }
 .sec + .sec { margin-top: 4px; }
@@ -262,6 +263,17 @@ textarea.inp { height: auto; padding: 8px 10px; resize: vertical; line-height: 1
 .add-act-list button:hover { background: var(--field); }
 .add-act-list b { display: block; font-weight: 500; }
 .add-act-list small { color: var(--text-3); font-size: 12px; }
+.add-act-group + .add-act-group { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line, rgba(255,255,255,.06)); }
+.add-act-group h5 { margin: 4px 8px 2px; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--text-3); }
+.chip.on { background: color-mix(in srgb, var(--acc) 22%, var(--field)); color: var(--text); display: inline-flex; align-items: center; gap: 4px; }
+.dev-list { display: flex; flex-direction: column; gap: 2px; }
+.dev { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background: var(--field); cursor: pointer; font-size: 13px; }
+.dev:hover { background: var(--field-h); }
+.dev.on { box-shadow: inset 0 0 0 1px var(--acc); }
+.dev input { accent-color: var(--acc); margin: 0; }
+.dev span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dev small { color: var(--text-3); font-size: 11px; }
+.http-row { grid-template-columns: 96px 1fr; }
 
 .hk { display: flex; gap: 6px; align-items: center; }
 .hk-box { flex: 1; min-height: 32px; border-radius: 6px; background: var(--field); display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 4px 8px; text-align: left; }

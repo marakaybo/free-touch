@@ -195,6 +195,29 @@ async fn session(core: &CoreRef, obs: &Arc<Obs>, host: &str, port: u16, password
     let init_obs = obs.clone();
     tokio::spawn(async move { refresh_all(&init_core, &init_obs).await });
 
+    // Время эфира и записи для подписей {obs.streamTime} и {obs.recordTime}.
+    let tick_core = core.clone();
+    let tick_obs = obs.clone();
+    let ticker = tokio::spawn(async move {
+        loop {
+            for (flag, req, key) in [
+                ("obs.streaming", "GetStreamStatus", "obs.streamTime"),
+                ("obs.recording", "GetRecordStatus", "obs.recordTime"),
+            ] {
+                let text = if tick_core.state_bool(flag) {
+                    match tick_obs.call(req, json!({})).await {
+                        Ok(v) => v["outputTimecode"].as_str().unwrap_or("").split('.').next().unwrap_or("").to_string(),
+                        Err(_) => continue,
+                    }
+                } else {
+                    "00:00:00".to_string()
+                };
+                tick_core.set_state(key, json!(text));
+            }
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    });
+
     let result = loop {
         let Some(msg) = stream.next().await else { break Ok(()) };
         let msg = match msg {
@@ -223,6 +246,7 @@ async fn session(core: &CoreRef, obs: &Arc<Obs>, host: &str, port: u16, password
         }
     };
     writer.abort();
+    ticker.abort();
     result.map_err(|_| "Связь с OBS потеряна".to_string())
 }
 
@@ -336,6 +360,9 @@ fn on_event(core: &CoreRef, obs: &Arc<Obs>, d: &Value) {
         }
         "ReplayBufferStateChanged" => core.set_state("obs.replay", json!(b("outputActive"))),
         "VirtualcamStateChanged" => core.set_state("obs.virtualcam", json!(b("outputActive"))),
+        "SourceFilterEnableStateChanged" => {
+            core.set_state(&format!("obs.filter:{}/{}", s("sourceName"), s("filterName")), json!(b("filterEnabled")))
+        }
         "InputMuteStateChanged" => core.set_state(&format!("obs.mute:{}", s("inputName")), json!(b("inputMuted"))),
         "InputVolumeChanged" => core.set_state(
             &format!("obs.volume:{}", s("inputName")),

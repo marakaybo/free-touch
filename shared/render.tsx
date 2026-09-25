@@ -19,9 +19,31 @@ export function fillCss(f: Fill): CSSProperties {
   return { backgroundColor: f.color };
 }
 
+/** Секундомер: {base, since} — накоплено и когда запущен. */
+type TimerState = { base: number; since: number | null };
+const isTimer = (v: unknown): v is TimerState => !!v && typeof v === 'object' && 'base' in (v as object);
+
+export function timerMs(v: unknown, now = Date.now()): number {
+  if (!isTimer(v)) return 0;
+  return v.base + (v.since ? Math.max(0, now - v.since) : 0);
+}
+
+export function formatDuration(ms: number): string {
+  const t = Math.floor(ms / 1000);
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  return h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`;
+}
+
 export function isActive(rule: ActiveRule | null, states: States): boolean {
   if (!rule || !rule.state) return false;
   const v = states[rule.state];
+  if (isTimer(v)) return !!v.since;
+  // Устройство звука ищем по вхождению: «Наушники» совпадают с «Наушники (Realtek)».
+  if (rule.equals !== '' && (rule.state === 'system.output' || rule.state === 'system.input')) {
+    return typeof v === 'string' && v.toLowerCase().includes(rule.equals.toLowerCase());
+  }
   if (rule.equals !== '') return v !== undefined && v !== null && String(v) === rule.equals;
   return v === true || (typeof v === 'number' && v !== 0) || (typeof v === 'string' && v !== '' && v !== 'false');
 }
@@ -38,13 +60,15 @@ export function formatLabel(text: string, states: States, now = new Date()): str
       case 'weekday': return now.toLocaleDateString('ru-RU', { weekday: 'long' });
     }
     const v = states[key];
+    if (key.startsWith('timer:')) return formatDuration(timerMs(v, now.getTime()));
+    if (key.startsWith('counter:') && v === undefined) return '0';
     if (v === undefined || v === null) return '—';
     if (typeof v === 'boolean') return v ? 'вкл' : 'выкл';
     return String(v);
   });
 }
 
-export const usesClock = (text: string) => /\{(time|seconds|date|weekday)\}/.test(text);
+export const usesClock = (text: string) => /\{(time|seconds|date|weekday|timer:[^}]+)\}/.test(text);
 
 /** Значок Phosphor из шрифта. fill — для клавиш, regular — для интерфейса. */
 export function Ph({ name, size = 16, color, weight = 'regular', className = '' }: {
@@ -151,6 +175,7 @@ export function sliderStateKey(b: Button): string {
   const t = b.slider?.target;
   if (!t || t.kind === 'master') return 'system.volume';
   if (t.kind === 'obsInput') return `obs.volume:${t.input}`;
+  if (t.kind === 'mic') return 'system.micVolume';
   return `app.volume:${t.app.toLowerCase()}`;
 }
 

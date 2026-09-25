@@ -90,6 +90,12 @@ pub struct Core {
     pub settings_rev: watch::Sender<u64>,
     /// Зажатые кнопками клавиши: (клиент, кнопка) → коды.
     pub held: Mutex<HashMap<(u64, String), Vec<String>>>,
+    /// Счётчики (смерти, победы…) — переживают перезапуск.
+    counters: Mutex<HashMap<String, i64>>,
+    /// Секундомеры: имя → (накоплено мс, запущен с — мс от эпохи).
+    timers: Mutex<HashMap<String, (u64, Option<u64>)>>,
+    /// Страница, на которую пульт перешёл сам из-за активной программы.
+    auto_page: Mutex<Option<String>>,
 }
 
 pub type CoreRef = Arc<Core>;
@@ -119,7 +125,15 @@ impl Core {
             server: Mutex::new(ServerStatus::default()),
             settings_rev,
             held: Mutex::new(HashMap::new()),
+            counters: Mutex::new(HashMap::new()),
+            timers: Mutex::new(HashMap::new()),
+            auto_page: Mutex::new(None),
         });
+        let counters: HashMap<String, i64> = read_json(&core.dir.join("counters.json")).unwrap_or_default();
+        for (k, v) in &counters {
+            core.set_state(&format!("counter:{k}"), json!(v));
+        }
+        *core.counters.lock().unwrap() = counters;
         core.save_settings_file();
         core
     }
@@ -173,6 +187,120 @@ impl Core {
         let msg = json!({ "t": "state", "key": key, "value": value });
         self.broadcast(&msg);
         let _ = self.app.emit("ft-state", json!({ "key": key, "value": value }));
+    }
+
+    pub fn state(&self, key: &str) -> Option<Value> {
+        self.states.lock().unwrap().get(key).cloned()
+    }
+
+    pub fn state_bool(&self, key: &str) -> bool {
+        matches!(self.state(key), Some(Value::Bool(true)))
+    }
+
+    // ---- счётчики и секундомеры ----
+
+    /// op: add (value — шаг, может быть отрицательным), set, reset. Возвращает новое значение.
+    pub fn counter(&self, name: &str, op: &str, value: i64, file: &str) -> i64 {
+        let name = name.trim();
+        let n = {
+            let mut c = self.counters.lock().unwrap();
+            let cur = c.get(name).copied().unwrap_or(0);
+            let n = match op {
+                "set" => value,
+                "reset" => 0,
+                _ => cur.saturating_add(value),
+            };
+            c.insert(name.to_string(), n);
+            write_json(&self.dir.join("counters.json"), &*c);
+            n
+        };
+        self.set_state(&format!("counter:{name}"), json!(n));
+        // Файл для OBS: источник «Текст» умеет читать число из файла.
+        if !file.trim().is_empty() {
+            let _ = std::fs::write(file.trim(), n.to_string());
+        }
+        n
+    }
+
+    /// op: toggle, start, stop, reset.
+    pub fn timer(&self, name: &str, op: &str) {
+        let name = name.trim().to_string();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let (base, since) = {
+            let mut t = self.timers.lock().unwrap();
+            let (mut base, mut since) = t.get(&name).copied().unwrap_or((0, None));
+            let running = since.is_some();
+            let stop = |base: &mut u64, since: &mut Option<u64>| {
+                if let Some(s) = since.take() {
+                    *base += now.saturating_sub(s);
+                }
+            };
+            match op {
+                "start" if !running => since = Some(now),
+                "stop" => stop(&mut base, &mut since),
+                "reset" => {
+                    base = 0;
+                    since = if running { Some(now) } else { None };
+                }
+                "toggle" => {
+                    if running {
+                        stop(&mut base, &mut since)
+                    } else {
+                        since = Some(now)
+                    }
+                }
+                _ => {}
+            }
+            t.insert(name.clone(), (base, since));
+            (base, since)
+        };
+        // Телефон сам досчитывает время от момента запуска.
+        self.set_state(&format!("timer:{name}"), json!({ "base": base, "since": since }));
+    }
+
+    // ---- активная программа ----
+
+    /// Программа на переднем плане сменилась: пульт переходит на её страницу,
+    /// а когда из неё выходят — возвращается туда, где был.
+    pub fn set_foreground(&self, exe: &str) {
+        if self.state("system.app").as_ref().and_then(|v| v.as_str()) == Some(exe) {
+            return;
+        }
+        self.set_state("system.app", json!(exe));
+        // Своё окно не считаем: иначе пульт прыгал бы при каждой правке в редакторе.
+        let own = std::env::current_exe()
+            .ok()
+            .and_then(|p| p.file_name().map(|n| n.to_string_lossy().to_lowercase()))
+            .unwrap_or_default();
+        if exe == own || exe == "explorer.exe" || exe == "searchhost.exe" || exe == "shellexperiencehost.exe" {
+            return;
+        }
+        let target = {
+            let p = self.profile.read().unwrap();
+            p["pages"].as_array().and_then(|pages| {
+                pages.iter().find_map(|pg| {
+                    let hit = pg["apps"].as_array()?.iter().any(|a| a.as_str().map(|s| s.trim().to_lowercase()) == Some(exe.to_string()));
+                    if hit { pg["id"].as_str().map(String::from) } else { None }
+                })
+            })
+        };
+        let mut auto = self.auto_page.lock().unwrap();
+        match target {
+            Some(id) => {
+                if auto.as_deref() != Some(id.as_str()) {
+                    *auto = Some(id.clone());
+                    self.broadcast(&json!({ "t": "goto", "page": id, "auto": true }));
+                }
+            }
+            None => {
+                if let Some(id) = auto.take() {
+                    self.broadcast(&json!({ "t": "goto", "page": "@autoback", "from": id, "auto": true }));
+                }
+            }
+        }
     }
 
     pub fn remove_states_with_prefix(&self, prefix: &str) {

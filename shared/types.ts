@@ -56,9 +56,20 @@ export type Action =
       input: string;
       source: string;
       collection: string;
+      filter: string;
     }
   | { type: 'page'; page: string }
-  | { type: 'delay'; ms: number };
+  | { type: 'delay'; ms: number }
+  /** Звуковая панель. overlap — поверх, restart — заново, toggle — второе нажатие останавливает. */
+  | { type: 'sound'; file: string; volume: number; device: string; mode: 'overlap' | 'restart' | 'toggle' }
+  | { type: 'stopSounds' }
+  /** Устройство звука по умолчанию. Несколько — по кругу. */
+  | { type: 'device'; input: boolean; devices: string[] }
+  | { type: 'counter'; name: string; op: 'add' | 'set' | 'reset'; value: number; file: string }
+  | { type: 'timer'; name: string; op: 'toggle' | 'start' | 'stop' | 'reset' }
+  | { type: 'system'; op: 'lock' | 'sleep' | 'monitorOff' | 'shutdown' | 'restart' | 'logoff' }
+  | { type: 'mouse'; op: 'left' | 'right' | 'middle' | 'double' | 'scrollUp' | 'scrollDown'; amount: number }
+  | { type: 'http'; method: 'GET' | 'POST' | 'PUT' | 'DELETE'; url: string; body: string; headers: string };
 
 export type ObsOp =
   | 'scene'
@@ -70,12 +81,14 @@ export type ObsOp =
   | 'saveReplay'
   | 'virtualcam'
   | 'mute'
-  | 'source';
+  | 'source'
+  | 'filter';
 
 export type SliderTarget =
   | { kind: 'master'; input: ''; app: '' }
   | { kind: 'obsInput'; input: string; app: '' }
-  | { kind: 'app'; input: ''; app: string };
+  | { kind: 'app'; input: ''; app: string }
+  | { kind: 'mic'; input: ''; app: '' };
 
 export interface ActiveRule {
   /** Ключ живого состояния, например obs.scene или obs.mute:Микрофон. */
@@ -99,6 +112,9 @@ export interface Button {
   actions: Action[];
   /** Действия при долгом нажатии (полсекунды и дольше). Пусто — долгого нажатия нет. */
   longActions: Action[];
+  /** Два состояния: нажатия по очереди выполняют actions и offActions. */
+  toggle: boolean;
+  offActions: Action[];
   active: ActiveRule | null;
   slider: { target: SliderTarget; vertical: boolean; color: string } | null;
 }
@@ -129,6 +145,8 @@ export interface Page {
   free: { landscape: Record<string, Rect>; portrait: Record<string, Rect> } | null;
   /** Как страница выглядит во вкладках на телефоне. */
   tab: { icon: IconRef; color: string };
+  /** Программы (exe), при переходе в которые пульт сам открывает эту страницу. */
+  apps: string[];
 }
 
 /** Прямоугольник в процентах от рабочей области экрана (0–100). */

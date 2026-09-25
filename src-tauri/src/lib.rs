@@ -4,7 +4,9 @@ mod core;
 mod input;
 mod obs;
 mod server;
+mod sound;
 mod usb;
+mod winsys;
 
 use crate::core::{Core, CoreRef, Settings};
 use crate::obs::Obs;
@@ -128,6 +130,24 @@ fn audio_apps() -> Vec<String> {
     audio::apps().into_iter().map(|a| a.exe).collect()
 }
 
+/// Звуковые устройства Windows: выходы (input = false) или микрофоны.
+#[tauri::command]
+async fn audio_devices(input: bool) -> Vec<winsys::AudioDevice> {
+    tokio::task::spawn_blocking(move || winsys::devices(input)).await.unwrap_or_default()
+}
+
+/// Программы с окнами на экране.
+#[tauri::command]
+async fn window_apps() -> Vec<String> {
+    tokio::task::spawn_blocking(winsys::window_apps).await.unwrap_or_default()
+}
+
+/// Куда можно вывести звуки звуковой панели.
+#[tauri::command]
+async fn sound_outputs() -> Vec<String> {
+    tokio::task::spawn_blocking(sound::outputs).await.unwrap_or_default()
+}
+
 #[tauri::command]
 fn read_text(path: String) -> Result<String, String> {
     std::fs::read_to_string(&path).map_err(|e| e.to_string())
@@ -245,6 +265,7 @@ pub fn run() {
             server::spawn(core.clone(), obs.clone());
             obs::spawn(core.clone(), obs.clone());
             audio::spawn_poller(core.clone());
+            winsys::spawn_poller(core.clone());
             spawn_sysmon(core.clone());
             let usb = Arc::new(usb::Usb::new());
             usb::spawn(core.clone(), usb.clone());
@@ -300,6 +321,9 @@ pub fn run() {
             test_actions,
             obs_detect,
             audio_apps,
+            audio_devices,
+            sound_outputs,
+            window_apps,
             read_text,
             write_text,
             read_image,
