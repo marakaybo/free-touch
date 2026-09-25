@@ -1,0 +1,3 @@
+# Скрипт Gradle запускается на Linux в GitHub Actions — только LF.
+android/gradlew text eol=lf
+*.sh text eol=lf
