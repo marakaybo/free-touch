@@ -11,7 +11,8 @@ if (!/^\d+\.\d+\.\d+$/.test(version ?? '')) {
   process.exit(1);
 }
 const changelog = readFileSync('CHANGELOG.md', 'utf8');
-if (!new RegExp(`^## \[?v?${version.replace(/\./g, '\.')}`, 'm').test(changelog)) {
+const sections = changelog.split('\n').filter((l) => l.startsWith('## ')).map((l) => l.trim().slice(3).replace(/^\[?v?/, ''));
+if (!sections.some((h) => h === version || h.startsWith(`${version} `) || h.startsWith(`${version}]`))) {
   console.error(`В CHANGELOG.md нет раздела «## ${version}». Опишите, что нового, — это увидят пользователи в окне обновления.`);
   process.exit(1);
 }
