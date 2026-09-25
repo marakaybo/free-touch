@@ -123,13 +123,13 @@ function LookTab({ b, up }: { b: Button; up: Up }) {
         </div>
         <Seg value={s.labelPos} onChange={(v) => set('labelPos', v, false)} options={[{ v: 'top', label: 'Сверху' }, { v: 'center', label: 'По центру' }, { v: 'bottom', label: 'Снизу' }, { v: 'hidden', label: 'Скрыть' }]} />
         <Seg value={s.font} onChange={(v) => set('font', v, false)} options={[
-          { v: 'condensed', label: <span style={{ fontFamily: "'IBM Plex Sans Condensed'" }}>Узкий</span> },
           { v: 'sans', label: <span style={{ fontFamily: "'IBM Plex Sans'" }}>Обычный</span> },
+          { v: 'condensed', label: <span style={{ fontFamily: "'IBM Plex Sans Condensed'" }}>Узкий</span> },
           { v: 'mono', label: <span style={{ fontFamily: "'IBM Plex Mono'" }}>Моно</span> },
         ]} />
         <Field label="Размер"><Range value={s.fontSize} min={6} max={40} onChange={(v) => set('fontSize', v)} /></Field>
         <Field label="Цвет"><Color compact value={s.textColor} onChange={(v) => set('textColor', v)} /></Field>
-        <Toggle checked={s.bold} onChange={(v) => set('bold', v, false)} label="Полужирная" />
+        <Toggle checked={s.bold} onChange={(v) => set('bold', v, false)} label="Жирная" />
       </Section>
 
       <Section title="Значок" right={<button className="btn ghost sm" onClick={() => setIconOpen(!iconOpen)}>{iconOpen ? 'Свернуть' : 'Выбрать'}</button>}>
@@ -262,6 +262,12 @@ function SliderTab({ b, up }: { b: Button; up: Up }) {
       </Section>
       <Section title="Вид">
         <Seg value={sl.vertical ? 'v' : 'h'} onChange={(v) => up((x) => { x.slider!.vertical = v === 'v'; })} options={[{ v: 'v', label: 'Вертикальный' }, { v: 'h', label: 'Горизонтальный' }]} />
+        <Field label="Цвет заливки"><Color compact value={sl.color} onChange={(color) => up((x) => { x.slider!.color = color; }, 'slcolor')} /></Field>
+        <div className="clr-quick">
+          {KEY_COLORS.filter((c) => c.id !== 'graphite').map((c) => (
+            <button key={c.id} type="button" title={c.name} style={{ background: c.fill }} className={sl.color === c.fill ? 'on' : ''} onClick={() => up((x) => { x.slider!.color = c.fill; })} />
+          ))}
+        </div>
       </Section>
     </>
   );
@@ -368,7 +374,7 @@ function PageInspector() {
               <button key={i} style={fillCss(f as Fill)} onClick={() => updatePage((p) => { p.background = structuredClone(f) as Fill; })} />
             ))}
           </div>
-          <FillEditor fill={page.background} onChange={(f) => updatePage((p) => { p.background = f; }, 'pbg')} />
+          <FillEditor fill={page.background} allowGradient onChange={(f) => updatePage((p) => { p.background = f; }, 'pbg')} />
         </Section>
         <Section title="Весь пульт">
           <Toggle checked={profile.pageDots} onChange={(v) => update((p) => { p.pageDots = v; })} label="Индикатор страниц внизу пульта" />

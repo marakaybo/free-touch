@@ -1,9 +1,9 @@
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
-html, body, #root { margin: 0; height: 100%; background: #121314; overflow: hidden; overscroll-behavior: none; }
+html, body, #root { margin: 0; height: 100%; background: #0F1115; overflow: hidden; overscroll-behavior: none; }
 body {
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
-  color: #E6E7E9;
+  color: #E8EAF0;
   -webkit-font-smoothing: antialiased;
   -webkit-user-select: none;
   user-select: none;
@@ -24,18 +24,18 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   align-items: center;
   padding: 0 14px calc(env(safe-area-inset-bottom) * .5);
   font-size: 12px;
-  color: #8E9197;
+  color: #969BA8;
 }
 .pn-status { display: flex; align-items: center; gap: 8px; white-space: nowrap; overflow: hidden; }
 .pn-pc { font-family: 'IBM Plex Mono', monospace; font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; }
-.pn-led { width: 6px; height: 6px; border-radius: 50%; background: #45474C; flex: none; }
+.pn-led { width: 6px; height: 6px; border-radius: 50%; background: #434854; flex: none; }
 .pn-led.on { background: #3D7BFF; }
 .pn-pages { display: flex; gap: 2px; }
 .pn-pages button { width: 22px; height: 28px; display: grid; place-items: center; }
-.pn-pages span { width: 14px; height: 3px; border-radius: 1px; background: #34363B; transition: background .15s; }
+.pn-pages span { width: 14px; height: 3px; border-radius: 1px; background: #2C303A; transition: background .15s; }
 .pn-pages .on span { background: #3D7BFF; }
-.pn-fs { justify-self: end; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 6px; color: #8E9197; }
-.pn-fs:active { background: #1D1E21; }
+.pn-fs { justify-self: end; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 6px; color: #969BA8; }
+.pn-fs:active { background: #1A1D23; }
 
 .pn-overlay {
   position: fixed; inset: 0; z-index: 10;
@@ -43,13 +43,13 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   background: rgba(14,15,16,.9);
   font-size: 15px; text-align: center; padding: 24px;
 }
-.pn-overlay small { color: #8E9197; font-size: 13px; max-width: 280px; line-height: 1.45; }
+.pn-overlay small { color: #969BA8; font-size: 13px; max-width: 280px; line-height: 1.45; }
 .pn-spinner { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #2A2C30; border-top-color: #3D7BFF; animation: pn-spin .8s linear infinite; }
 @keyframes pn-spin { to { transform: rotate(360deg) } }
 
 .pn-toast {
   position: fixed; left: 50%; bottom: 48px; transform: translateX(-50%); z-index: 20;
-  background: #212225; color: #E6E7E9; border-radius: 8px; padding: 10px 14px; font-size: 14px;
+  background: #1F2229; color: #E8EAF0; border-radius: 8px; padding: 10px 14px; font-size: 14px;
   max-width: calc(100% - 32px); animation: pn-in .15s ease-out;
 }
 @keyframes pn-in { from { opacity: 0; transform: translate(-50%, 6px) } }
@@ -58,21 +58,21 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
   position: absolute; top: 10px; left: 50%; transform: translateX(-50%); z-index: 5;
   display: flex; align-items: center; gap: 8px; white-space: nowrap;
   padding: 8px 12px; border-radius: 8px; font-size: 13px;
-  background: #212225; color: #C9CBCF;
+  background: #1F2229; color: #E8EAF0;
 }
 
 .pn-setup {
   position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 14px; padding: 28px; text-align: center; background: #121314;
+  gap: 14px; padding: 28px; text-align: center; background: #0F1115;
 }
 .pn-setup img { border-radius: 16px; }
 .pn-setup h1 { margin: 0; font-size: 22px; font-weight: 600; }
 .pn-setup p { margin: 0; max-width: 320px; line-height: 1.5; color: #9A9DA3; font-size: 15px; }
 .pn-form { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 340px; margin-top: 8px; }
-.pn-form input { user-select: text; -webkit-user-select: text; font: 14px 'IBM Plex Mono', monospace; padding: 12px 14px; border-radius: 8px; border: 0; background: #212225; color: inherit; outline: none; }
+.pn-form input { user-select: text; -webkit-user-select: text; font: 14px 'IBM Plex Mono', monospace; padding: 12px 14px; border-radius: 8px; border: 0; background: #1F2229; color: inherit; outline: none; }
 .pn-form input:focus { box-shadow: 0 0 0 1px #3D7BFF; }
 .pn-form button { padding: 12px; border-radius: 8px; background: #3D7BFF; color: #fff; font-weight: 500; }
-.pn-err { color: #E6E7E9; font-size: 14px; max-width: 320px; line-height: 1.45; }
+.pn-err { color: #E8EAF0; font-size: 14px; max-width: 320px; line-height: 1.45; }
 
 /* Пока палец держат на клавише с долгим нажатием, снизу поднимается заливка. */
 .is-holding .ft-face::after {

@@ -372,9 +372,7 @@ function SliderCell({ b, page, states, send }: { b: Button; page: Page; states: 
   const vertical = b.slider?.vertical ?? true;
 
   const valueAt = (e: React.PointerEvent) => {
-    // Значение считаем по дорожке фейдера, а не по всей ячейке — так палец совпадает с колпачком.
-    const track = ref.current!.querySelector('.ft-fader-track') ?? ref.current!;
-    const r = track.getBoundingClientRect();
+    const r = ref.current!.getBoundingClientRect();
     const v = vertical ? (r.bottom - e.clientY) / r.height : (e.clientX - r.left) / r.width;
     return Math.round(Math.max(0, Math.min(1, v)) * 100);
   };

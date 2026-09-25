@@ -1,8 +1,9 @@
 // Общая модель данных пульта: её понимают редактор, телефон и сервер на Rust.
 
-/** Заливка плоская: цвет или картинка. Градиентов нет — клавиши как пластик. */
+/** Заливка: цвет, картинка или (только для фона страницы) мягкий градиент. */
 export type Fill =
   | { type: 'solid'; color: string }
+  | { type: 'gradient'; from: string; to: string; angle: number }
   | { type: 'image'; src: string; dim: number };
 
 export type IconRef =

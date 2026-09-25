@@ -1,26 +1,26 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs><clipPath id="k0"><rect x="200" y="200" width="284" height="284" rx="40"/></clipPath><clipPath id="k1"><rect x="540" y="200" width="284" height="284" rx="40"/></clipPath><clipPath id="k2"><rect x="200" y="540" width="284" height="284" rx="40"/></clipPath><clipPath id="k3"><rect x="540" y="540" width="284" height="284" rx="40"/></clipPath></defs>
-  <rect x="40" y="40" width="944" height="944" rx="200" fill="#18191B"/>
-  <rect x="84" y="84" width="856" height="856" rx="164" fill="#0E0F10"/>
+  <rect x="40" y="40" width="944" height="944" rx="200" fill="#14161B"/>
+  <rect x="84" y="84" width="856" height="856" rx="164" fill="#0B0C10"/>
   <g clip-path="url(#k0)">
-    <rect x="200" y="200" width="284" height="284" rx="40" fill="#2A2C30"/>
+    <rect x="200" y="200" width="284" height="284" rx="40" fill="#2B2E36"/>
     <rect x="200" y="452" width="284" height="32" rx="0" fill="#1B1C1F"/>
     <rect x="200" y="200" width="284" height="8" fill="#3A3C41"/>
   </g>
   <g clip-path="url(#k1)">
-    <rect x="540" y="200" width="284" height="284" rx="40" fill="#2A2C30"/>
+    <rect x="540" y="200" width="284" height="284" rx="40" fill="#2B2E36"/>
     <rect x="540" y="452" width="284" height="32" fill="#1B1C1F"/>
     <rect x="540" y="200" width="284" height="8" fill="#3A3C41"/>
   </g>
   <g clip-path="url(#k2)">
-    <rect x="200" y="540" width="284" height="284" rx="40" fill="#2A2C30"/>
+    <rect x="200" y="540" width="284" height="284" rx="40" fill="#2B2E36"/>
     <rect x="200" y="792" width="284" height="32" fill="#1B1C1F"/>
     <rect x="200" y="540" width="284" height="8" fill="#3A3C41"/>
   </g>
   <g clip-path="url(#k3)">
-    <rect x="540" y="540" width="284" height="284" rx="40" fill="#2A2C30"/>
-    <rect x="540" y="792" width="284" height="32" fill="#1B1C1F"/>
-    <rect x="540" y="540" width="284" height="8" fill="#3A3C41"/>
-    <rect x="620" y="580" width="124" height="22" rx="11" fill="#3D7BFF"/>
+    <rect x="540" y="540" width="284" height="284" rx="40" fill="#3D7BFF"/>
+    <rect x="540" y="540" width="284" height="120" fill="#FFFFFF" fill-opacity="0.08"/>
+    <rect x="540" y="788" width="284" height="36" fill="#000000" fill-opacity="0.25"/>
+    <rect x="540" y="540" width="284" height="8" fill="#FFFFFF" fill-opacity="0.3"/>
   </g>
 </svg>

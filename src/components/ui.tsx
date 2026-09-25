@@ -109,7 +109,7 @@ export function Select<T extends string>({ value, options, onChange, placeholder
   );
 }
 
-const QUICK = [...KEY_COLORS.map((c) => c.fill), '#121314', '#C9CBCF', '#FFFFFF'];
+const QUICK = [...KEY_COLORS.map((c) => c.fill), '#0F1115', '#1A1D23', '#FFFFFF'];
 
 /** Цвет с прозрачностью: #RRGGBB или #RRGGBBAA. Код цвета — моноширинным. */
 export function Color({ value, onChange, compact }: { value: string; onChange: (v: string) => void; compact?: boolean }) {
@@ -156,18 +156,33 @@ export async function loadImage(maxSide: number): Promise<string | null> {
   return c.toDataURL('image/webp', 0.88);
 }
 
-export function FillEditor({ fill, onChange, allowImage = true }: { fill: Fill; onChange: (f: Fill) => void; allowImage?: boolean }) {
+export function FillEditor({ fill, onChange, allowImage = true, allowGradient = false }: {
+  fill: Fill; onChange: (f: Fill) => void; allowImage?: boolean; allowGradient?: boolean;
+}) {
   const setType = (t: Fill['type']) => {
     if (t === fill.type) return;
-    if (t === 'solid') onChange({ type: 'solid', color: '#2A2C30' });
+    const base = fill.type === 'solid' ? fill.color.slice(0, 7) : fill.type === 'gradient' ? fill.from : '#2B2E36';
+    if (t === 'solid') onChange({ type: 'solid', color: base });
+    if (t === 'gradient') onChange({ type: 'gradient', from: base, to: '#162038', angle: 165 });
     if (t === 'image') loadImage(900).then((src) => src && onChange({ type: 'image', src, dim: 0.35 }));
   };
+  const options: { v: Fill['type']; label: string }[] = [{ v: 'solid', label: 'Цвет' }];
+  if (allowGradient) options.push({ v: 'gradient', label: 'Градиент' });
+  if (allowImage) options.push({ v: 'image', label: 'Картинка' });
   return (
     <div className="fill-ed">
-      {allowImage && (
-        <Seg value={fill.type} onChange={setType} options={[{ v: 'solid', label: 'Цвет' }, { v: 'image', label: 'Картинка' }]} />
-      )}
+      {options.length > 1 && <Seg value={fill.type} onChange={setType} options={options} />}
       {fill.type === 'solid' && <Color value={fill.color} onChange={(color) => onChange({ ...fill, color })} />}
+      {fill.type === 'gradient' && (
+        <>
+          <div className="img-prev" style={fillCss(fill)} />
+          <div className="two">
+            <Color compact value={fill.from} onChange={(from) => onChange({ ...fill, from })} />
+            <Color compact value={fill.to} onChange={(to) => onChange({ ...fill, to })} />
+          </div>
+          <Field label="Угол"><Range value={fill.angle} min={0} max={360} step={5} suffix="°" onChange={(angle) => onChange({ ...fill, angle })} /></Field>
+        </>
+      )}
       {fill.type === 'image' && (
         <>
           <div className="img-prev" style={fillCss(fill)} />

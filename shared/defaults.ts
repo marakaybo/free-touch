@@ -9,23 +9,23 @@ export const ACCENT = '#3D7BFF';
 export const LIVE = '#E5484D';
 export const LIVE_STATES = ['obs.streaming', 'obs.recording'];
 
-export const KEY_TEXT = '#C9CBCF';
-export const DIM_TEXT = '#6B6E75';
+export const KEY_TEXT = '#F2F3F6';
+export const DIM_TEXT = '#7D8290';
 
 export const baseStyle = (): ButtonStyle => ({
-  fill: { type: 'solid', color: '#2A2C30' },
-  radius: 11,
+  fill: { type: 'solid', color: '#2B2E36' },
+  radius: 18,
   borderWidth: 0,
   borderColor: '#FFFFFF26',
   shadow: 'key',
   label: '',
   labelPos: 'bottom',
-  font: 'condensed',
-  fontSize: 14,
-  bold: false,
+  font: 'sans',
+  fontSize: 13,
+  bold: true,
   textColor: KEY_TEXT,
   icon: { kind: 'none' },
-  iconSize: 34,
+  iconSize: 36,
   iconColor: KEY_TEXT,
   press: 'press',
 });
@@ -37,16 +37,16 @@ export interface KeyColor {
   text: string;
 }
 
-/** «Пластики» для клавиш: плоские приглушённые тона. */
+/** Цвета клавиш: насыщенные, но не кислотные. Красного нет — он занят эфиром. */
 export const KEY_COLORS: KeyColor[] = [
-  { id: 'graphite', name: 'Графит', fill: '#2A2C30', text: KEY_TEXT },
-  { id: 'coal', name: 'Уголь', fill: '#1E1F22', text: '#B4B7BC' },
-  { id: 'steel', name: 'Сталь', fill: '#353B44', text: '#D2D6DC' },
-  { id: 'olive', name: 'Олива', fill: '#394030', text: '#D3D8C8' },
-  { id: 'ochre', name: 'Охра', fill: '#4E4428', text: '#E0D6BC' },
-  { id: 'rust', name: 'Ржавчина', fill: '#4A3326', text: '#E2CFC2' },
-  { id: 'plum', name: 'Слива', fill: '#3A2A37', text: '#DCCCD8' },
-  { id: 'sand', name: 'Песок', fill: '#BDB6A8', text: '#26272A' },
+  { id: 'graphite', name: 'Графит', fill: '#2B2E36', text: KEY_TEXT },
+  { id: 'blue', name: 'Синий', fill: '#3D7BFF', text: '#FFFFFF' },
+  { id: 'teal', name: 'Бирюза', fill: '#0FA394', text: '#FFFFFF' },
+  { id: 'green', name: 'Зелёный', fill: '#2E9E57', text: '#FFFFFF' },
+  { id: 'amber', name: 'Янтарь', fill: '#F2A93B', text: '#2B1C05' },
+  { id: 'orange', name: 'Оранжевый', fill: '#EC5F00', text: '#FFFFFF' },
+  { id: 'wine', name: 'Вино', fill: '#8E2B3A', text: '#FFFFFF' },
+  { id: 'white', name: 'Белый', fill: '#E6E8ED', text: '#1B1D22' },
 ];
 
 export const keyColorStyle = (c: KeyColor): Partial<ButtonStyle> => ({
@@ -56,12 +56,12 @@ export const keyColorStyle = (c: KeyColor): Partial<ButtonStyle> => ({
 });
 
 export const PAGE_BACKGROUNDS: Fill[] = [
-  { type: 'solid', color: '#121314' },
-  { type: 'solid', color: '#0E0F10' },
-  { type: 'solid', color: '#16171A' },
-  { type: 'solid', color: '#1A1B1E' },
-  { type: 'solid', color: '#1B1A18' },
-  { type: 'solid', color: '#15181B' },
+  { type: 'solid', color: '#0F1115' },
+  { type: 'gradient', from: '#0F1115', to: '#162038', angle: 165 },
+  { type: 'gradient', from: '#0F1115', to: '#241820', angle: 165 },
+  { type: 'gradient', from: '#0E1213', to: '#0F2624', angle: 165 },
+  { type: 'gradient', from: '#11100E', to: '#2A1C10', angle: 165 },
+  { type: 'solid', color: '#1A1D23' },
 ];
 
 export const newButton = (x: number, y: number, patch: Partial<Button> = {}): Button => ({
@@ -89,7 +89,7 @@ export const newPage = (name: string, cols = 4, rows = 3): Page => ({
   cols,
   rows,
   gap: 12,
-  background: { type: 'solid', color: '#121314' },
+  background: { type: 'gradient', from: '#0F1115', to: '#162038', angle: 165 },
   buttons: [],
 });
 
@@ -142,7 +142,7 @@ export function defaultProfile(): Profile {
   };
 
   stream.buttons = [
-    obsBtn(0, 0, 'Эфир', 'broadcast', 'stream'),
+    { ...obsBtn(0, 0, 'Эфир', 'broadcast', 'stream'), style: withStyle({ label: 'Эфир', icon: icon('broadcast'), fill: { type: 'solid', color: '#3D7BFF' }, textColor: '#FFFFFF', iconColor: '#FFFFFF' }) },
     obsBtn(1, 0, 'Запись', 'record', 'record'),
     obsBtn(2, 0, 'Повтор', 'rewind', 'saveReplay'),
     newButton(0, 1, {
@@ -160,7 +160,7 @@ export function defaultProfile(): Profile {
     }),
     newButton(0, 2, {
       w: 2,
-      style: withStyle({ label: '{time}', labelPos: 'center', font: 'mono', fontSize: 24, shadow: 'flat', fill: { type: 'solid', color: '#1A1B1E' } }),
+      style: withStyle({ label: '{time}', labelPos: 'center', font: 'mono', fontSize: 24, shadow: 'flat', fill: { type: 'solid', color: '#1A1D23' } }),
     }),
     newButton(2, 2, {
       style: withStyle({ label: 'Медиа', icon: icon('music-notes') }),
@@ -179,18 +179,18 @@ export function defaultProfile(): Profile {
 
   media.buttons = [
     mediaBtn(0, 0, 'Назад', 'skip-back', 'prev'),
-    mediaBtn(1, 0, 'Пауза', 'play-pause', 'playPause'),
+    { ...mediaBtn(1, 0, 'Пауза', 'play-pause', 'playPause'), style: withStyle({ label: 'Пауза', icon: icon('play-pause'), fill: { type: 'solid', color: '#3D7BFF' }, textColor: '#FFFFFF', iconColor: '#FFFFFF' }) },
     mediaBtn(2, 0, 'Вперёд', 'skip-forward', 'next'),
     mediaBtn(0, 1, 'Тише', 'speaker-low', 'volDown'),
     mediaBtn(1, 1, 'Громче', 'speaker-high', 'volUp'),
     mediaBtn(2, 1, 'Без звука', 'speaker-x', 'mute'),
     newButton(0, 2, {
-      style: withStyle({ label: 'Назад', icon: icon('arrow-left'), shadow: 'flat', fill: { type: 'solid', color: '#1E1F22' } }),
+      style: withStyle({ label: 'Назад', icon: icon('arrow-left'), shadow: 'flat', fill: { type: 'solid', color: '#22252D' } }),
       actions: [{ type: 'page', page: '@back' }],
     }),
     newButton(1, 2, {
       w: 2,
-      style: withStyle({ label: 'ЦП {system.cpu}%  ОЗУ {system.ram}%', labelPos: 'center', font: 'mono', fontSize: 13, shadow: 'flat', fill: { type: 'solid', color: '#1A1B1E' } }),
+      style: withStyle({ label: 'ЦП {system.cpu}%  ОЗУ {system.ram}%', labelPos: 'center', font: 'mono', fontSize: 13, shadow: 'flat', fill: { type: 'solid', color: '#1A1D23' } }),
     }),
     newButton(3, 0, {
       h: 3,
@@ -222,42 +222,12 @@ function normActions(list: any): Action[] {
     .map((a) => ({ ...defaultAction(a.type), ...a }) as Action);
 }
 
-function hexToHsl(hex: string): [number, number, number] | null {
-  const m = /^#?([0-9a-f]{6})/i.exec(hex);
-  if (!m) return null;
-  const n = parseInt(m[1], 16);
-  const r = ((n >> 16) & 255) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
-  const max = Math.max(r, g, b), min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  if (max === min) return [0, 0, l];
-  const d = max - min;
-  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
-  return [h / 6, s, l];
-}
-
-function hslToHex(h: number, s: number, l: number): string {
-  const f = (n: number) => {
-    const k = (n + h * 12) % 12;
-    const a = s * Math.min(l, 1 - l);
-    const c = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
-    return Math.round(c * 255).toString(16).padStart(2, '0');
-  };
-  return `#${f(0)}${f(8)}${f(4)}`.toUpperCase();
-}
-
-/** Приглушить цвет до «пластика»: меньше насыщенности, тёмный тон. */
-export function mute(hex: string): string {
-  const hsl = hexToHsl(hex);
-  if (!hsl) return '#2A2C30';
-  const [h, s, l] = hsl;
-  if (l > 0.72) return hslToHex(h, Math.min(s, 0.12), 0.7);
-  return hslToHex(h, Math.min(s, 0.26), Math.min(0.26, Math.max(0.14, l * 0.55)));
-}
-
-function normFill(f: any, def: Fill): Fill {
+function normFill(f: any, def: Fill, allowGradient = false): Fill {
   if (f?.type === 'solid' && typeof f.color === 'string') return f;
-  if (f?.type === 'gradient' && typeof f.from === 'string') return { type: 'solid', color: mute(f.from) };
+  if (f?.type === 'gradient' && typeof f.from === 'string') {
+    // На клавишах градиентов нет: берём первый цвет. Фону страницы градиент можно.
+    return allowGradient ? { type: 'gradient', from: f.from, to: String(f.to ?? f.from), angle: Number(f.angle) || 0 } : { type: 'solid', color: f.from };
+  }
   if (f?.type === 'image' && typeof f.src === 'string') return { type: 'image', src: f.src, dim: Number(f.dim) || 0 };
   return def;
 }
@@ -292,13 +262,10 @@ const FONTS: Record<string, ButtonStyle['font']> = { onest: 'condensed', unbound
 function migrateOldStyle(raw: any): any {
   if (!raw || !('glowColor' in raw)) return raw;
   const r = { ...raw };
-  r.radius = 11;
-  r.bold = false;
-  r.font = 'condensed';
-  if (r.fontSize === 13) r.fontSize = 14;
-  if (r.iconSize === 38) r.iconSize = 34;
-  if (r.fill?.type === 'solid' && /^#23252F$/i.test(r.fill.color)) r.fill = { type: 'solid', color: '#2A2C30' };
-  if (r.fill?.type === 'solid' && /^#FFFFFF(0D|10|14)$/i.test(r.fill.color)) { r.fill = { type: 'solid', color: '#1A1B1E' }; r.shadow = 'none'; }
+  if (r.radius > 24) r.radius = 18;
+  r.font = r.font === 'mono' ? 'mono' : 'sans';
+  if (r.fill?.type === 'solid' && /^#23252F$/i.test(r.fill.color)) r.fill = { type: 'solid', color: '#2B2E36' };
+  if (r.fill?.type === 'solid' && /^#FFFFFF(0D|10|14)$/i.test(r.fill.color)) { r.fill = { type: 'solid', color: '#1A1D23' }; r.shadow = 'none'; }
   if (/^#ECEDF3$/i.test(r.textColor)) r.textColor = KEY_TEXT;
   if (/^#ECEDF3$/i.test(r.iconColor)) r.iconColor = KEY_TEXT;
   return r;
@@ -321,7 +288,7 @@ function normStyle(raw0: any): ButtonStyle {
 function normActive(a: any): ActiveRule | null {
   if (!a || typeof a.state !== 'string') return null;
   const style: Partial<ButtonStyle> & Record<string, unknown> = { ...(a.style ?? {}) };
-  if (style.fill) style.fill = normFill(style.fill, { type: 'solid', color: '#2A2C30' });
+  if (style.fill) style.fill = normFill(style.fill, { type: 'solid', color: '#2B2E36' });
   if (style.icon) style.icon = normIcon(style.icon);
   const redFill = (style.fill as Fill | undefined)?.type === 'solid' && /^#E5484D/i.test((style.fill as { color: string }).color);
   if (redFill) {
@@ -362,19 +329,18 @@ export function normalizeProfile(raw: any): Profile {
         longActions: normActions(b.longActions),
         active: normActive(b.active),
         slider: type === 'slider'
-          ? { target: { kind: 'master', input: '', app: '' }, vertical: true, ...(b.slider ?? {}), color: ACCENT }
+          ? { target: { kind: 'master', input: '', app: '' }, vertical: true, color: ACCENT, ...(b.slider ?? {}) }
           : null,
       } as Button;
     });
-    const bg = normFill(pg.background, base.background);
+    const bg = normFill(pg.background, base.background, true);
     return {
       id: typeof pg.id === 'string' && pg.id ? pg.id : uid(),
       name: String(pg.name ?? 'Страница'),
       cols,
       rows,
       gap: int(pg.gap, 0, 40, 12),
-      // Страница — ровный тёмный фон; старые цветные фоны сводим к тёмному тону.
-      background: bg.type === 'solid' && pg.background?.type === 'gradient' ? { type: 'solid', color: '#121314' } : bg,
+      background: bg,
       buttons,
     };
   });

@@ -14,7 +14,9 @@ export function fillCss(f: Fill): CSSProperties {
       backgroundPosition: 'center',
     };
   }
-  return { background: f.color };
+  if (f.type === 'gradient') return { backgroundImage: `linear-gradient(${f.angle}deg, ${f.from}, ${f.to})` };
+  // Цвет — отдельным свойством, чтобы поверх лёг блик клавиши из CSS.
+  return { backgroundColor: f.color };
 }
 
 export function isActive(rule: ActiveRule | null, states: States): boolean {
@@ -113,17 +115,16 @@ export function ButtonFace({ button, states, pressed, now }: FaceProps) {
   const { style: s, active } = resolveStyle(button, states);
   const label = s.labelPos === 'hidden' ? '' : formatLabel(s.label, states, now);
   const live = active && isLive(button) && !button.active?.style.fill;
-  const plain = active && button.active && Object.keys(button.active.style).length === 0;
   const face: CSSProperties = {
-    ...fillCss(live ? { type: 'solid', color: '#3A2325' } : s.fill),
+    ...fillCss(live ? { type: 'solid', color: '#D93A40' } : s.fill),
     borderRadius: `${s.radius}cqmin`,
-    color: live ? '#F2DADB' : plain ? '#ECEDEF' : s.textColor,
+    color: live ? '#FFFFFF' : s.textColor,
     fontFamily: FONT[s.font],
-    fontWeight: s.bold ? 500 : 400,
+    fontWeight: s.bold ? 600 : 400,
     outline: s.borderWidth ? `${s.borderWidth * 0.8}cqmin solid ${s.borderColor}` : undefined,
     outlineOffset: s.borderWidth ? `-${s.borderWidth * 0.8}cqmin` : undefined,
   };
-  const iconColor = live ? '#F2DADB' : plain ? '#ECEDEF' : s.iconColor;
+  const iconColor = live ? '#FFFFFF' : s.iconColor;
   const hasIcon = s.icon.kind !== 'none';
   const iconEl = hasIcon ? <IconView icon={s.icon} color={iconColor} size={`${s.iconSize}cqmin`} /> : null;
   const labelEl = label ? <span className="ft-label" style={{ fontSize: `${s.fontSize}cqmin` }}>{label}</span> : null;
@@ -153,23 +154,24 @@ export function sliderStateKey(b: Button): string {
   return `app.volume:${t.app.toLowerCase()}`;
 }
 
-/** Фейдер как на микшере: утопленная дорожка, колпачок с риской, значение моноширинным. */
+/** Громкость: клавиша, которая заливается цветом по уровню. Край заливки — «ручка». */
 export function SliderFace({ button, states, value, dragging }: { button: Button; states: States; value: number; dragging?: boolean }) {
   const s = button.style;
   const vertical = button.slider?.vertical ?? true;
+  const color = button.slider?.color || ACCENT;
   const v = Math.max(0, Math.min(100, value));
   const label = s.labelPos === 'hidden' ? '' : formatLabel(s.label, states);
   return (
     <div
-      className={`ft-face ft-fader ${vertical ? 'is-vertical' : 'is-horizontal'} ${dragging ? 'is-dragging' : ''}`}
-      style={{ borderRadius: `${Math.min(s.radius, 14)}cqmin`, ['--v' as string]: `${v}%`, ['--vn' as string]: v / 100, ['--acc' as string]: ACCENT }}
+      className={`ft-face is-key ft-fader ${vertical ? 'is-vertical' : 'is-horizontal'} ${dragging ? 'is-dragging' : ''}`}
+      style={{ ...fillCss(s.fill), borderRadius: `${s.radius}cqmin`, color: s.textColor, fontFamily: FONT[s.font], ['--v' as string]: `${v}%`, ['--fc' as string]: color }}
     >
-      <span className="ft-fader-value">{Math.round(v)}</span>
-      <div className="ft-fader-slot">
-        <div className="ft-fader-track"><div className="ft-fader-level" /></div>
-        <div className="ft-fader-cap"><i /></div>
+      <div className="ft-fader-level" />
+      <div className="ft-fader-info">
+        {s.icon.kind !== 'none' && <IconView icon={s.icon} color={s.iconColor} size={vertical ? '30cqmin' : '44cqmin'} />}
+        <span className="ft-fader-value">{Math.round(v)}</span>
+        {label && <span className="ft-fader-label">{label}</span>}
       </div>
-      {label && <span className="ft-fader-label" style={{ fontFamily: FONT[s.font] }}>{label}</span>}
     </div>
   );
 }

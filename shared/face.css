@@ -18,18 +18,25 @@
   align-items: center;
   justify-content: center;
   gap: 4cqmin;
-  padding: 10cqmin 7cqmin 11cqmin;
+  padding: 10cqmin 7cqmin 12cqmin;
   box-sizing: border-box;
   transition: transform 70ms ease-out, box-shadow 70ms ease-out, filter 70ms, background-color .2s, color .2s;
 }
-/* Объём клавиши: блик по верхнему краю и тёмная нижняя грань. */
+/* Объём клавиши: мягкий блик сверху, грань снизу и тень под клавишей — как настоящая кнопка. */
 .ft-face.is-key {
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.07), inset 0 -3.2cqmin 0 rgba(0,0,0,.34);
+  background-image: linear-gradient(180deg, rgba(255,255,255,.13) 0%, rgba(255,255,255,.03) 38%, rgba(0,0,0,.10) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.22),
+    inset 0 -4cqmin 0 rgba(0,0,0,.26),
+    0 5cqmin 9cqmin -3cqmin rgba(0,0,0,.6);
 }
 .ft-face.is-key.is-pressed {
-  transform: translateY(2cqmin);
-  box-shadow: inset 0 -1.2cqmin 0 rgba(0,0,0,.34);
-  filter: brightness(.92);
+  transform: translateY(2.6cqmin);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.12),
+    inset 0 -1.4cqmin 0 rgba(0,0,0,.26),
+    0 1.5cqmin 3cqmin -1cqmin rgba(0,0,0,.55);
+  filter: brightness(.93);
 }
 .ft-face.is-flat.is-pressed, .ft-face.is-touched { filter: brightness(.86); }
 
@@ -38,8 +45,9 @@
 .ft-lp-center .ft-icon-wrap { flex: none; }
 .ft-spacer { flex: 1; }
 .ft-label {
-  line-height: 1.1;
+  line-height: 1.12;
   text-align: center;
+  letter-spacing: -0.005em;
   max-width: 100%;
   overflow: hidden;
   display: -webkit-box;
@@ -58,8 +66,9 @@
   background: rgba(0,0,0,.38);
   box-shadow: inset 0 0 0 1px rgba(255,255,255,.035);
 }
-.ft-led.is-on { background: #3D7BFF; box-shadow: none; }
-.ft-led.is-live { background: #E5484D; box-shadow: none; }
+/* Горящий светодиод со светлым ободком — читается и на графите, и на цветной клавише. */
+.ft-led.is-on { background: #E3ECFF; box-shadow: 0 0 0 0.9cqmin #3D7BFF, 0 0 0 1.8cqmin rgba(0,0,0,.2); }
+.ft-led.is-live { background: #FFFFFF; box-shadow: 0 0 0 0.9cqmin rgba(255,255,255,.4), 0 0 0 1.7cqmin rgba(0,0,0,.18); }
 
 /* Метка клавиши, у которой есть долгое нажатие. */
 .ft-long-mark {
@@ -69,44 +78,21 @@
   pointer-events: none;
 }
 
-/* ---------- фейдер ---------- */
-.ft-fader {
-  background: #1D1E21;
-  padding: 8cqmin 0 9cqmin;
-  gap: 5cqmin;
-  justify-content: flex-start;
-}
-.ft-fader-value { font: 500 17cqmin/1 'IBM Plex Mono', ui-monospace, monospace; color: #E6E7E9; font-variant-numeric: tabular-nums; }
-.ft-fader-label { font-size: 13cqmin; line-height: 1.1; color: #9A9DA3; text-align: center; padding: 0 4cqmin; }
-.ft-fader-slot { position: relative; flex: 1; width: 100%; min-height: 0; }
-.ft-fader-track { position: absolute; background: #0B0C0D; border-radius: 4cqmin; overflow: hidden; }
-.ft-fader-level { position: absolute; background: var(--acc); }
-.ft-fader-cap {
-  position: absolute;
-  background: #3A3C41;
-  border-radius: 2.4cqmin;
-  box-shadow: inset 0 1px 0 rgba(255,255,255,.1), inset 0 -2.4cqmin 0 rgba(0,0,0,.35);
-  display: grid; place-items: center;
-}
-.ft-fader-cap i { display: block; background: #1B1C1F; border-radius: 1cqmin; }
-.ft-fader:not(.is-dragging) .ft-fader-cap, .ft-fader:not(.is-dragging) .ft-fader-level { transition: all 90ms linear; }
-
-.ft-fader.is-vertical .ft-fader-track { left: 50%; top: 12cqmin; bottom: 12cqmin; width: 7cqmin; margin-left: -3.5cqmin; }
+/* ---------- громкость ---------- */
+.ft-fader { padding: 0; justify-content: flex-start; }
+.ft-fader-level { position: absolute; background: var(--fc); }
+.ft-fader-level::after { content: ''; position: absolute; background: rgba(255,255,255,.55); border-radius: 2cqmin; }
+.ft-fader:not(.is-dragging) .ft-fader-level { transition: height 80ms linear, width 80ms linear; }
 .ft-fader.is-vertical .ft-fader-level { left: 0; right: 0; bottom: 0; height: var(--v); }
-.ft-fader.is-vertical .ft-fader-cap {
-  left: 50%; width: 58cqmin; margin-left: -29cqmin; height: 20cqmin;
-  bottom: calc(12cqmin + (100% - 24cqmin) * var(--vn) - 10cqmin);
-}
-.ft-fader.is-vertical .ft-fader-cap i { width: 70%; height: 1.8cqmin; }
-
-.ft-fader.is-horizontal { flex-direction: row; padding: 0 8cqmin; gap: 6cqmin; justify-content: flex-start; }
-.ft-fader.is-horizontal .ft-fader-slot { height: 100%; }
-.ft-fader.is-horizontal .ft-fader-value { font-size: 26cqmin; min-width: 2.2em; text-align: right; }
-.ft-fader.is-horizontal .ft-fader-label { font-size: 18cqmin; max-width: 30%; }
-.ft-fader.is-horizontal .ft-fader-track { top: 50%; left: 12cqmin; right: 12cqmin; height: 7cqmin; margin-top: -3.5cqmin; }
+.ft-fader.is-vertical .ft-fader-level::after { top: 3cqmin; left: 32%; right: 32%; height: 2.4cqmin; }
 .ft-fader.is-horizontal .ft-fader-level { top: 0; bottom: 0; left: 0; width: var(--v); }
-.ft-fader.is-horizontal .ft-fader-cap {
-  top: 50%; height: 58cqmin; margin-top: -29cqmin; width: 20cqmin;
-  left: calc(12cqmin + (100% - 24cqmin) * var(--vn) - 10cqmin);
+.ft-fader.is-horizontal .ft-fader-level::after { right: 3cqmin; top: 30%; bottom: 30%; width: 2.4cqmin; }
+.ft-fader-info {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  gap: 3cqmin; padding: 11cqmin 4cqmin; pointer-events: none;
 }
-.ft-fader.is-horizontal .ft-fader-cap i { height: 70%; width: 1.8cqmin; }
+.ft-fader.is-horizontal .ft-fader-info { flex-direction: row; justify-content: flex-start; padding: 0 8cqmin; gap: 6cqmin; align-items: center; }
+.ft-fader-value { font: 500 22cqmin/1 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.ft-fader.is-horizontal .ft-fader-value { font-size: 30cqmin; }
+.ft-fader-label { font-size: 12cqmin; font-weight: 600; opacity: .85; text-align: center; }
+.ft-fader.is-horizontal .ft-fader-label { font-size: 22cqmin; }
