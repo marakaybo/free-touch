@@ -91,6 +91,8 @@ export const newPage = (name: string, cols = 4, rows = 3): Page => ({
   gap: 12,
   background: { type: 'gradient', from: '#0F1115', to: '#162038', angle: 165 },
   buttons: [],
+  portrait: null,
+  square: false,
 });
 
 export const defaultAction = (type: Action['type']): Action => {
@@ -334,6 +336,19 @@ export function normalizeProfile(raw: any): Profile {
       } as Button;
     });
     const bg = normFill(pg.background, base.background, true);
+    let portrait: Page['portrait'] = null;
+    if (pg.portrait && typeof pg.portrait === 'object') {
+      const pc = int(pg.portrait.cols, 1, 12, rows);
+      const pr = int(pg.portrait.rows, 1, 12, cols);
+      const pos: Record<string, { x: number; y: number; w: number; h: number }> = {};
+      for (const [id, p] of Object.entries(pg.portrait.pos ?? {}) as [string, any][]) {
+        if (!p) continue;
+        const x = int(p.x, 0, pc - 1, 0);
+        const y = int(p.y, 0, pr - 1, 0);
+        pos[id] = { x, y, w: int(p.w, 1, pc - x, 1), h: int(p.h, 1, pr - y, 1) };
+      }
+      portrait = { cols: pc, rows: pr, pos };
+    }
     return {
       id: typeof pg.id === 'string' && pg.id ? pg.id : uid(),
       name: String(pg.name ?? 'Страница'),
@@ -342,6 +357,8 @@ export function normalizeProfile(raw: any): Profile {
       gap: int(pg.gap, 0, 40, 12),
       background: bg,
       buttons,
+      portrait,
+      square: pg.square === true,
     };
   });
   const home = pages.some((p) => p.id === raw.home) ? raw.home : pages[0].id;

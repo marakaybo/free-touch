@@ -39,6 +39,7 @@ export const api = {
   readImage: (path: string) => invoke<string>('read_image', { path }),
   allowFirewall: () => invoke<void>('allow_firewall'),
   usbInstallAdb: () => invoke<void>('usb_install_adb'),
+  usbPlainPhones: () => invoke<string[]>('usb_plain_phones'),
   quit: () => invoke<void>('quit'),
 };
 
@@ -98,6 +99,7 @@ function mock(cmd: string, args?: Record<string, unknown>): unknown {
     case 'save_settings': return args?.settings;
     case 'pair_qr': return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#fff"/><rect x="2" y="2" width="6" height="6" fill="#000"/></svg>';
     case 'net_ips': return [{ ip: '192.168.1.10', name: 'Wi-Fi', lan: true }];
+    case 'usb_plain_phones': return ['Galaxy A51'];
     case 'audio_apps': return ['chrome.exe', 'discord.exe', 'obs64.exe', 'spotify.exe'];
     case 'test_actions': return [];
     default: return null;

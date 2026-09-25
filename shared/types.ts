@@ -103,14 +103,26 @@ export interface Button {
   slider: { target: SliderTarget; vertical: boolean; color: string } | null;
 }
 
+export interface Pos {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 export interface Page {
   id: string;
   name: string;
+  /** Горизонтальная раскладка: сетка страницы и x/y/w/h самих клавиш. */
   cols: number;
   rows: number;
   gap: number;
   background: Fill;
   buttons: Button[];
+  /** Своя вертикальная раскладка. null — горизонтальная, повёрнутая на бок. */
+  portrait: { cols: number; rows: number; pos: Record<string, Pos> } | null;
+  /** Квадратные клавиши вместо растянутых на весь экран. */
+  square: boolean;
 }
 
 export interface Profile {
@@ -170,6 +182,8 @@ export interface ClientInfo {
   id: number;
   name: string;
   addr: string;
+  /** Размер экрана телефона в CSS-пикселях. */
+  screen: [number, number] | null;
 }
 
 export interface ServerStatus {

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { normalizeProfile } from '../shared/defaults';
+import type { Orient } from '../shared/layout';
 import type { Button, ClientInfo, ObsMeta, Page, Profile, ServerStatus, Settings, States, UsbStatus } from '../shared/types';
 import { api, on, type Bootstrap, type NetIp } from './api';
 
@@ -17,6 +18,9 @@ interface Ctx {
   usb: UsbStatus;
   pageId: string;
   page: Page;
+  /** Какую раскладку правим: горизонтальную или вертикальную. */
+  orient: Orient;
+  setOrient: (o: Orient) => void;
   selected: string | null;
   selectedButton: Button | null;
   setPageId: (id: string) => void;
@@ -54,6 +58,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [usb, setUsb] = useState<UsbStatus>({ enabled: false, adb: null, devices: [], error: null, installing: false });
   const [pageId, setPageId] = useState('');
   const [selected, select] = useState<string | null>(null);
+  const [orient, setOrientState] = useState<Orient>(() => {
+    try { return localStorage.getItem('ft.orient') === 'portrait' ? 'portrait' : 'landscape'; } catch { return 'landscape'; }
+  });
+  const setOrient = useCallback((o: Orient) => {
+    setOrientState(o);
+    try { localStorage.setItem('ft.orient', o); } catch { /* нет хранилища */ }
+  }, []);
   const past = useRef<{ p: Profile; key?: string; t: number }[]>([]);
   const future = useRef<Profile[]>([]);
   const [, bump] = useState(0);
@@ -210,6 +221,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     usb,
     pageId: page.id,
     page,
+    orient,
+    setOrient,
     selected: selectedButton ? selected : null,
     selectedButton,
     setPageId: (id) => { setPageId(id); select(null); },

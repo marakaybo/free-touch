@@ -1,29 +1,32 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { newButton, uid } from '../../shared/defaults';
+import {
+  DEFAULT_SCREEN, PANEL_BAR, PANEL_PAD, computeGrid, fitsIn, layoutOf, placeNew, removeButton, setPos, spotForCopy, type Orient,
+} from '../../shared/layout';
 import { ButtonFace, Ph, SliderFace, fillCss, sliderStateKey, usesClock } from '../../shared/render';
-import type { Button, Page } from '../../shared/types';
+import type { Button, Pos } from '../../shared/types';
 import { useStore } from '../store';
+import { Seg } from './ui';
 
-export function fits(page: Page, x: number, y: number, w: number, h: number, ignore?: string) {
-  if (x < 0 || y < 0 || x + w > page.cols || y + h > page.rows) return false;
-  return !page.buttons.some((b) => b.id !== ignore && x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y);
-}
-
-export function firstFree(page: Page, w = 1, h = 1): { x: number; y: number } | null {
-  for (let y = 0; y < page.rows; y++) for (let x = 0; x < page.cols; x++) if (fits(page, x, y, w, h)) return { x, y };
-  return null;
-}
-
-type Drag = { id: string; kind: 'move' | 'resize'; sx: number; sy: number; ox: number; oy: number; ow: number; oh: number; moved: boolean };
+type Drag = { id: string; kind: 'move' | 'resize'; sx: number; sy: number; o: Pos; moved: boolean };
 
 let clipboard: Button | null = null;
 
+/** Экран телефона в CSS-пикселях: берём у подключённого телефона, иначе типичный. */
+export function useScreen() {
+  const { clients } = useStore();
+  const c = clients.find((x) => x.screen);
+  const [a, b] = c?.screen ?? [DEFAULT_SCREEN.w, DEFAULT_SCREEN.h];
+  return { short: Math.min(a, b), long: Math.max(a, b), device: c?.name ?? null };
+}
+
 export function Canvas() {
-  const { page, states, selected, select, updatePage } = useStore();
+  const { page, profile, states, selected, select, updatePage, orient, setOrient } = useStore();
+  const screen = useScreen();
   const wrap = useRef<HTMLDivElement>(null);
   const [box, setBox] = useState({ w: 600, h: 400 });
   const [drag, setDrag] = useState<Drag | null>(null);
-  const [ghost, setGhost] = useState<{ x: number; y: number; w: number; h: number; ok: boolean; swap?: string } | null>(null);
+  const [ghost, setGhost] = useState<(Pos & { ok: boolean; swap?: string }) | null>(null);
   const [now, setNow] = useState(new Date());
 
   useLayoutEffect(() => {
@@ -40,17 +43,19 @@ export function Canvas() {
     return () => clearInterval(t);
   }, [clock]);
 
-  // Размер ячейки — квадрат, как на телефоне.
-  const PAD = 26;
-  const gap = page.gap;
-  // запас под рамку «телефона» и подсказку снизу
-  const cell = Math.max(24, Math.min((box.w - PAD * 2 - 64 - gap * (page.cols - 1)) / page.cols, (box.h - PAD * 2 - 110 - gap * (page.rows - 1)) / page.rows, 170));
-  const gw = cell * page.cols + gap * (page.cols - 1);
-  const gh = cell * page.rows + gap * (page.rows - 1);
-  const step = cell + gap;
-  const pos = (x: number, y: number, w: number, h: number) => ({
-    left: x * step, top: y * step, width: w * cell + (w - 1) * gap, height: h * cell + (h - 1) * gap,
-  });
+  const layout = useMemo(() => layoutOf(page, orient), [page, orient]);
+
+  // Экран телефона в его пикселях — считаем раскладку ровно как пульт, потом масштабируем.
+  const PW = orient === 'landscape' ? screen.long : screen.short;
+  const PH = orient === 'landscape' ? screen.short : screen.long;
+  const grid = computeGrid(PW - PANEL_PAD * 2, PH - PANEL_PAD * 2 - PANEL_BAR, layout.cols, layout.rows, page.gap, page.square);
+  const s = Math.max(0.2, Math.min((box.w - 48) / PW, (box.h - 96) / PH, 2));
+  const gap = page.gap * s;
+  const cw = grid.cw * s;
+  const ch = grid.ch * s;
+  const stepX = cw + gap;
+  const stepY = ch + gap;
+  const pos = (p: Pos) => ({ left: p.x * stepX, top: p.y * stepY, width: p.w * cw + (p.w - 1) * gap, height: p.h * ch + (p.h - 1) * gap });
 
   // горячие клавиши холста
   useEffect(() => {
@@ -58,9 +63,10 @@ export function Canvas() {
       const t = e.target as HTMLElement;
       if (t.closest('input, textarea, select, [contenteditable], .insp, .modal-bg')) return;
       const sel = page.buttons.find((b) => b.id === selected);
+      const selPos = sel ? layout.pos[sel.id] : undefined;
       if ((e.key === 'Delete' || e.key === 'Backspace') && sel) {
         e.preventDefault();
-        updatePage((p) => { p.buttons = p.buttons.filter((b) => b.id !== sel.id); });
+        updatePage((p) => removeButton(p, sel.id));
         select(null);
       } else if (e.ctrlKey && e.code === 'KeyC' && sel) {
         clipboard = structuredClone(sel);
@@ -68,61 +74,54 @@ export function Canvas() {
         const src = e.code === 'KeyD' ? sel : clipboard;
         if (!src) return;
         e.preventDefault();
-        const spot = firstFree(page, src.w, src.h) ?? firstFree(page);
+        const spot = spotForCopy(page, orient, selPos ?? { x: 0, y: 0, w: 1, h: 1 });
         if (!spot) return;
-        const w = fits(page, spot.x, spot.y, src.w, src.h) ? src.w : 1;
-        const h = fits(page, spot.x, spot.y, src.w, src.h) ? src.h : 1;
-        const copy: Button = { ...structuredClone(src), id: uid(), ...spot, w, h };
-        updatePage((p) => { p.buttons.push(copy); });
+        const copy: Button = { ...structuredClone(src), id: uid() };
+        updatePage((p) => placeNew(p, orient, copy, spot));
         select(copy.id);
       } else if (e.key === 'Escape') {
         select(null);
-      } else if (sel && e.key.startsWith('Arrow')) {
+      } else if (sel && selPos && e.key.startsWith('Arrow')) {
         e.preventDefault();
         const dx = e.key === 'ArrowLeft' ? -1 : e.key === 'ArrowRight' ? 1 : 0;
         const dy = e.key === 'ArrowUp' ? -1 : e.key === 'ArrowDown' ? 1 : 0;
-        if (fits(page, sel.x + dx, sel.y + dy, sel.w, sel.h, sel.id)) {
-          updatePage((p) => { const b = p.buttons.find((x) => x.id === sel.id)!; b.x += dx; b.y += dy; });
-        }
+        const np = { ...selPos, x: selPos.x + dx, y: selPos.y + dy };
+        if (fitsIn(layout, np.x, np.y, np.w, np.h, sel.id)) updatePage((p) => setPos(p, orient, sel.id, np));
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [page, selected, select, updatePage]);
+  }, [page, layout, orient, selected, select, updatePage]);
 
   const startDrag = (e: React.PointerEvent, b: Button, kind: Drag['kind']) => {
     e.stopPropagation();
+    const o = layout.pos[b.id];
+    if (!o) return;
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
     select(b.id);
-    setDrag({ id: b.id, kind, sx: e.clientX, sy: e.clientY, ox: b.x, oy: b.y, ow: b.w, oh: b.h, moved: false });
+    setDrag({ id: b.id, kind, sx: e.clientX, sy: e.clientY, o, moved: false });
   };
 
   const onMove = (e: React.PointerEvent) => {
     if (!drag) return;
-    const dx = Math.round((e.clientX - drag.sx) / step);
-    const dy = Math.round((e.clientY - drag.sy) / step);
+    const dx = Math.round((e.clientX - drag.sx) / stepX);
+    const dy = Math.round((e.clientY - drag.sy) / stepY);
     if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) < 5) return;
     if (!drag.moved) setDrag({ ...drag, moved: true });
-    let g;
-    if (drag.kind === 'move') {
-      const x = Math.max(0, Math.min(page.cols - drag.ow, drag.ox + dx));
-      const y = Math.max(0, Math.min(page.rows - drag.oh, drag.oy + dy));
-      g = { x, y, w: drag.ow, h: drag.oh };
-    } else {
-      const w = Math.max(1, Math.min(page.cols - drag.ox, drag.ow + dx));
-      const h = Math.max(1, Math.min(page.rows - drag.oy, drag.oh + dy));
-      g = { x: drag.ox, y: drag.oy, w, h };
-    }
-    let ok = fits(page, g.x, g.y, g.w, g.h, drag.id);
+    const o = drag.o;
+    const g: Pos = drag.kind === 'move'
+      ? { x: Math.max(0, Math.min(layout.cols - o.w, o.x + dx)), y: Math.max(0, Math.min(layout.rows - o.h, o.y + dy)), w: o.w, h: o.h }
+      : { x: o.x, y: o.y, w: Math.max(1, Math.min(layout.cols - o.x, o.w + dx)), h: Math.max(1, Math.min(layout.rows - o.y, o.h + dy)) };
+    let ok = fitsIn(layout, g.x, g.y, g.w, g.h, drag.id);
     let swap: string | undefined;
     if (!ok && drag.kind === 'move') {
-      // Кнопку того же размера, стоящую ровно на месте, меняем местами с перетаскиваемой.
-      const other = page.buttons.find((b) => b.id !== drag.id && b.x === g.x && b.y === g.y && b.w === drag.ow && b.h === drag.oh);
+      // Клавишу того же размера, стоящую ровно на месте, меняем местами с перетаскиваемой.
+      const other = Object.entries(layout.pos).find(([id, p]) => id !== drag.id && p.x === g.x && p.y === g.y && p.w === o.w && p.h === o.h);
       if (other) {
-        const rest = { ...page, buttons: page.buttons.filter((b) => b.id !== other.id) };
-        if (fits(rest, g.x, g.y, g.w, g.h, drag.id) && fits(rest, drag.ox, drag.oy, other.w, other.h, drag.id)) {
+        const rest = { ...layout, pos: Object.fromEntries(Object.entries(layout.pos).filter(([id]) => id !== other[0])) };
+        if (fitsIn(rest, g.x, g.y, g.w, g.h, drag.id) && fitsIn(rest, o.x, o.y, o.w, o.h, drag.id)) {
           ok = true;
-          swap = other.id;
+          swap = other[0];
         }
       }
     }
@@ -132,11 +131,10 @@ export function Canvas() {
   const onUp = () => {
     if (drag && ghost && ghost.ok && drag.moved) {
       const g = ghost;
+      const o = drag.o;
       updatePage((p) => {
-        const b = p.buttons.find((x) => x.id === drag.id);
-        const other = g.swap ? p.buttons.find((x) => x.id === g.swap) : undefined;
-        if (other && b) Object.assign(other, { x: b.x, y: b.y });
-        if (b) Object.assign(b, { x: g.x, y: g.y, w: g.w, h: g.h });
+        if (g.swap) setPos(p, orient, g.swap, { ...layout.pos[g.swap], x: o.x, y: o.y });
+        setPos(p, orient, drag.id, { x: g.x, y: g.y, w: g.w, h: g.h });
       });
     }
     setDrag(null);
@@ -146,61 +144,92 @@ export function Canvas() {
   const addAt = (x: number, y: number) => {
     const b = newButton(x, y);
     b.style.label = 'Кнопка';
-    updatePage((p) => { p.buttons.push(b); });
+    updatePage((p) => placeNew(p, orient, b, { x, y, w: 1, h: 1 }));
     select(b.id);
   };
 
   const slots = [];
-  for (let y = 0; y < page.rows; y++) {
-    for (let x = 0; x < page.cols; x++) {
-      if (fits(page, x, y, 1, 1)) {
+  for (let y = 0; y < layout.rows; y++) {
+    for (let x = 0; x < layout.cols; x++) {
+      if (fitsIn(layout, x, y, 1, 1)) {
         slots.push(
-          <button key={`${x}-${y}`} className="slot" style={pos(x, y, 1, 1)} onClick={() => addAt(x, y)} title="Добавить клавишу">
-            <Ph name="plus" size={Math.max(14, cell * 0.2)} />
+          <button key={`${x}-${y}`} className="slot" style={pos({ x, y, w: 1, h: 1 })} onClick={() => addAt(x, y)} title="Добавить клавишу">
+            <Ph name="plus" size={Math.max(14, Math.min(cw, ch) * 0.2)} />
           </button>,
         );
       }
     }
   }
 
+  const deselect = (e: React.PointerEvent) => { if (e.target === e.currentTarget) select(null); };
+  const hiddenCount = layout.hidden.length;
+
   return (
-    <div className="canvas" ref={wrap} onPointerDown={(e) => e.target === e.currentTarget && select(null)}>
+    <div className="canvas" ref={wrap} onPointerDown={deselect}>
       <div className="canvas-bar">
         <span className="canvas-title">{page.name || 'Без названия'}</span>
-        <span className="mono dim">{page.cols}×{page.rows}</span>
+        <span className="mono dim">{layout.cols}×{layout.rows}</span>
+        <div className="orient-seg">
+          <Seg<Orient>
+            value={orient}
+            onChange={(o) => { setOrient(o); select(null); }}
+            options={[
+              { v: 'landscape', label: <><Ph name="device-mobile" size={15} className="rot90" /> Горизонтально</>, title: 'Телефон лежит горизонтально' },
+              { v: 'portrait', label: <><Ph name="device-mobile" size={15} /> Вертикально</>, title: 'Телефон в руке вертикально' },
+            ]}
+          />
+        </div>
+        <span className="dim screen-note" title="Пропорции экрана — от подключённого телефона">
+          {screen.device ? screen.device : 'Телефон'} <span className="mono">{PW}×{PH}</span>
+        </span>
         <HelpButton />
       </div>
-      <div className="deck" style={{ ...fillCss(page.background), width: gw + PAD * 2, height: gh + PAD * 2 }} onPointerDown={(e) => e.target === e.currentTarget && select(null)}>
-        <div className="grid-area" style={{ width: gw, height: gh }} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}>
+      <div className="phone" style={{ ...fillCss(page.background), width: PW * s, height: PH * s }} onPointerDown={deselect}>
+        <div
+          className="grid-area"
+          style={{ left: ((PW - grid.gw) / 2) * s, top: ((PH - PANEL_BAR - grid.gh) / 2) * s, width: grid.gw * s, height: grid.gh * s }}
+          onPointerMove={onMove}
+          onPointerUp={onUp}
+          onPointerCancel={onUp}
+        >
           {slots}
           {page.buttons.map((b) => {
+            const p = layout.pos[b.id];
+            if (!p) return null;
             const isSel = b.id === selected;
-            const hidden = b.x + b.w > page.cols || b.y + b.h > page.rows;
-            if (hidden) return null;
             const moving = drag?.id === b.id && drag.moved;
             return (
               <div
                 key={b.id}
                 className={`ft-cell ed-cell ${isSel ? 'is-selected' : ''} ${moving ? 'moving' : ''}`}
-                style={pos(b.x, b.y, b.w, b.h)}
+                style={pos(p)}
                 onPointerDown={(e) => startDrag(e, b, 'move')}
               >
                 {b.type === 'slider'
-                  ? <SliderFace button={b} states={states} value={Number(states[sliderStateKey(b)] ?? 50)} />
+                  ? <SliderFace button={b} states={states} value={Number(states[sliderStateKey(b)] ?? 50)} vertical={p.h * grid.ch >= p.w * grid.cw} />
                   : <ButtonFace button={b} states={states} now={now} />}
                 {b.type === 'button' && b.longActions.length > 0 && <span className="ft-long-mark" title="Есть долгое нажатие" />}
                 {isSel && <span className="rs-handle" onPointerDown={(e) => startDrag(e, b, 'resize')} title="Потяните, чтобы изменить размер" />}
               </div>
             );
           })}
-          {ghost && drag?.moved && <div className={`drop-ghost ${ghost.ok ? '' : 'bad'}`} style={pos(ghost.x, ghost.y, ghost.w, ghost.h)} />}
+          {ghost && drag?.moved && <div className={`drop-ghost ${ghost.ok ? '' : 'bad'}`} style={pos(ghost)} />}
+        </div>
+        <div className="phone-bar" style={{ height: PANEL_BAR * s }}>
+          {profile.pageDots && profile.pages.length > 1 && profile.pages.map((pg) => <i key={pg.id} className={pg.id === page.id ? 'on' : ''} />)}
         </div>
       </div>
+      {hiddenCount > 0 && (
+        <div className="canvas-warn">
+          {hiddenCount === 1 ? 'Одна клавиша не поместилась' : `Не поместилось клавиш: ${hiddenCount}`} в эту раскладку — добавьте строк или столбцов справа.
+        </div>
+      )}
     </div>
   );
 }
 
 const HELP: [string, string][] = [
+  ['Горизонтально / Вертикально', 'Раскладка для каждого положения телефона'],
   ['Клик по пустому гнезду', 'Новая клавиша'],
   ['Перетащить клавишу', 'Переставить'],
   ['Перетащить на другую клавишу', 'Поменять местами'],

@@ -62,6 +62,8 @@ pub struct ClientInfo {
     pub id: u64,
     pub name: String,
     pub addr: String,
+    /// Размер экрана телефона в CSS-пикселях — редактор рисует пульт в тех же пропорциях.
+    pub screen: Option<[u32; 2]>,
     #[serde(skip)]
     pub tx: mpsc::UnboundedSender<String>,
 }

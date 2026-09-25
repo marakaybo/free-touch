@@ -201,3 +201,22 @@ pub fn install_adb(core: &CoreRef, usb: &Usb) -> Result<(), String> {
     }
     res.map_err(|e| format!("Не удалось скачать adb: {}", e.lines().next().unwrap_or("")))
 }
+
+/// Телефоны, которые Windows видит по кабелю как обычное устройство (передача файлов).
+/// Если такой есть, а adb его не видит — на телефоне выключена отладка по USB.
+pub fn plain_usb_phones() -> Vec<String> {
+    #[cfg(windows)]
+    {
+        let out = no_window(Command::new("powershell").args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "[Console]::OutputEncoding=[Text.Encoding]::UTF8; Get-PnpDevice -PresentOnly -Class WPD -ErrorAction SilentlyContinue | Where-Object Status -eq 'OK' | ForEach-Object FriendlyName",
+        ]))
+        .output();
+        if let Ok(o) = out {
+            return String::from_utf8_lossy(&o.stdout).lines().map(|l| l.trim().to_string()).filter(|l| !l.is_empty()).collect();
+        }
+    }
+    Vec::new()
+}

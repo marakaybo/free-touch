@@ -345,3 +345,20 @@ textarea.inp { height: auto; padding: 8px 10px; resize: vertical; line-height: 1
 .usb-dev { display: grid; grid-template-columns: auto 1fr; column-gap: 9px; align-items: center; }
 .usb-dev .led { grid-row: span 2; }
 .usb-dev small { color: var(--text-3); font-size: 11.5px; }
+.usb-how { margin: 6px 0 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; }
+
+/* ---------- экран телефона на холсте ---------- */
+.phone {
+  position: relative; margin-top: 30px; border-radius: 22px; overflow: hidden;
+  box-shadow: 0 0 0 6px #07080B, 0 0 0 7px rgba(255,255,255,.07), 0 24px 60px -20px rgba(0,0,0,.85);
+  transition: width .25s ease, height .25s ease;
+}
+.phone .grid-area { position: absolute; }
+.phone-bar { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.phone-bar i { width: 12px; height: 3px; border-radius: 1px; background: #2C303A; }
+.phone-bar i.on { background: var(--acc); }
+.orient-seg { width: 290px; margin-left: 8px; }
+.orient-seg .seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.rot90 { transform: rotate(90deg); }
+.screen-note { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.canvas-warn { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); background: var(--raised); color: var(--text); padding: 8px 12px; border-radius: 8px; font-size: 12.5px; white-space: nowrap; }

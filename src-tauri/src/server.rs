@@ -149,6 +149,7 @@ async fn client_loop(socket: WebSocket, addr: SocketAddr, ctx: Ctx) {
             id,
             name: "Устройство".into(),
             addr: if addr.ip().is_loopback() { "USB".into() } else { addr.ip().to_string() },
+            screen: None,
             tx: tx.clone(),
         },
     );
@@ -216,14 +217,19 @@ fn handle(ctx: &Ctx, id: u64, text: &str) {
     let core = &ctx.core;
     let s = |k: &str| v[k].as_str().unwrap_or("").to_string();
     match v["t"].as_str().unwrap_or("") {
-        "hello" => {
+        "hello" | "screen" => {
             let name: String = s("name").chars().take(40).collect();
-            if !name.is_empty() {
-                if let Some(c) = core.clients.lock().unwrap().get_mut(&id) {
+            let w = v["w"].as_u64().unwrap_or(0) as u32;
+            let h = v["h"].as_u64().unwrap_or(0) as u32;
+            if let Some(c) = core.clients.lock().unwrap().get_mut(&id) {
+                if !name.is_empty() {
                     c.name = name;
                 }
-                core.emit_clients();
+                if w >= 200 && h >= 200 && w <= 5000 && h <= 5000 {
+                    c.screen = Some([w, h]);
+                }
             }
+            core.emit_clients();
         }
         "ping" => core.send_to(id, &json!({ "t": "pong" })),
         "down" => {

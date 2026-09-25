@@ -3,8 +3,9 @@ import NoSleep from 'nosleep.js';
 import { normalizeProfile } from '../shared/defaults';
 import { QrCamera } from './QrCamera';
 import { APP_VERSION, checkApkUpdate, downloadApk, haptic, isNative, keepAwake as nativeKeepAwake, onBackButton, scanQr } from './native';
-import { ButtonFace, Ph, SliderFace, cellStyle, fillCss, sliderStateKey, usesClock } from '../shared/render';
-import type { Button, Page, Profile, States } from '../shared/types';
+import { ButtonFace, Ph, SliderFace, fillCss, sliderStateKey, usesClock } from '../shared/render';
+import { PANEL_BAR, PANEL_PAD, computeGrid, layoutOf, posStyle, type Orient } from '../shared/layout';
+import type { Button, Page, Pos, Profile, States } from '../shared/types';
 
 // ---------- подключение ----------
 
@@ -139,7 +140,7 @@ export function App() {
       let unauthorized = false;
       ws.onopen = () => {
         retry = 0;
-        ws.send(JSON.stringify({ t: 'hello', name: deviceName() }));
+        ws.send(JSON.stringify({ t: 'hello', name: deviceName(), w: window.innerWidth, h: window.innerHeight }));
         ping = window.setInterval(() => ws.readyState === 1 && ws.send('{"t":"ping"}'), 15000);
       };
       ws.onmessage = (e) => {
@@ -164,6 +165,15 @@ export function App() {
       };
     };
     open();
+    let rt: number | undefined;
+    const onResize = () => {
+      clearTimeout(rt);
+      rt = window.setTimeout(() => {
+        const ws = wsRef.current;
+        if (ws && ws.readyState === 1) ws.send(JSON.stringify({ t: 'screen', w: window.innerWidth, h: window.innerHeight }));
+      }, 400);
+    };
+    window.addEventListener('resize', onResize);
     const onVis = () => {
       if (document.visibilityState === 'visible' && !wsRef.current) { clearTimeout(timer); open(); }
     };
@@ -173,6 +183,8 @@ export function App() {
       clearTimeout(timer);
       clearInterval(ping);
       document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('resize', onResize);
+      clearTimeout(rt);
       wsRef.current?.close();
     };
   }, [targetKey, goto]);
@@ -319,8 +331,8 @@ function useViewport() {
   return vp;
 }
 
-const BAR = 34;
-const PAD = 14;
+const BAR = PANEL_BAR;
+const PAD = PANEL_PAD;
 
 function PageView({ page, states, send, onSwipe }: {
   page: Page;
@@ -337,17 +349,10 @@ function PageView({ page, states, send, onSwipe }: {
     return () => clearInterval(t);
   }, [clock]);
 
-  const availW = vp.w - PAD * 2;
-  const availH = vp.h - PAD * 2 - BAR;
-  const cell = Math.max(20, Math.min((availW - page.gap * (page.cols - 1)) / page.cols, (availH - page.gap * (page.rows - 1)) / page.rows));
-  const gw = cell * page.cols + page.gap * (page.cols - 1);
-  const gh = cell * page.rows + page.gap * (page.rows - 1);
-  // Если в другой ориентации кнопки станут заметно крупнее — подскажем повернуть телефон.
-  const rotW = vp.h - PAD * 2;
-  const rotH = vp.w - PAD * 2 - BAR;
-  const cellRot = Math.min((rotW - page.gap * (page.cols - 1)) / page.cols, (rotH - page.gap * (page.rows - 1)) / page.rows);
-  const [hintOff, setHintOff] = useState(false);
-  const rotateHint = !hintOff && cell < 110 && cellRot > cell * 1.4;
+  // Телефон вертикально — вертикальная раскладка страницы, горизонтально — горизонтальная.
+  const orient: Orient = vp.h > vp.w ? 'portrait' : 'landscape';
+  const layout = useMemo(() => layoutOf(page, orient), [page, orient]);
+  const grid = computeGrid(vp.w - PAD * 2, vp.h - PAD * 2 - BAR, layout.cols, layout.rows, page.gap, page.square);
 
   // свайп по пустому месту — соседняя страница
   const swipe = useRef<{ x: number; y: number } | null>(null);
@@ -368,20 +373,25 @@ function PageView({ page, states, send, onSwipe }: {
         if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(e.clientY - s.y) * 1.5) onSwipe(dx < 0 ? 1 : -1);
       }}
     >
-      {rotateHint && (
-        <button className="pn-rotate" onClick={() => setHintOff(true)}>
-          <Ph name="device-rotate" size={17} />
-          Поверните телефон — кнопки станут крупнее
-        </button>
-      )}
-      <div className="pn-grid" style={{ width: gw, height: gh, gridTemplateColumns: `repeat(${page.cols}, 1fr)`, gridTemplateRows: `repeat(${page.rows}, 1fr)`, gap: page.gap }}>
-        {page.buttons.map((b) =>
-          b.type === 'slider' ? (
-            <SliderCell key={b.id} b={b} page={page} states={states} send={send} />
+      <div
+        className="pn-grid"
+        style={{
+          width: grid.gw,
+          height: grid.gh,
+          gridTemplateColumns: `repeat(${layout.cols}, ${grid.cw}px)`,
+          gridTemplateRows: `repeat(${layout.rows}, ${grid.ch}px)`,
+          gap: page.gap,
+        }}
+      >
+        {page.buttons.map((b) => {
+          const pos = layout.pos[b.id];
+          if (!pos) return null;
+          return b.type === 'slider' ? (
+            <SliderCell key={b.id} b={b} pos={pos} vertical={pos.h * grid.ch >= pos.w * grid.cw} page={page} states={states} send={send} />
           ) : (
-            <ButtonCell key={b.id} b={b} page={page} states={states} send={send} now={now} />
-          ),
-        )}
+            <ButtonCell key={b.id} b={b} pos={pos} page={page} states={states} send={send} now={now} />
+          );
+        })}
       </div>
     </div>
   );
@@ -389,8 +399,8 @@ function PageView({ page, states, send, onSwipe }: {
 
 const LONG_MS = 500;
 
-function ButtonCell({ b, page, states, send, now }: {
-  b: Button; page: Page; states: States; send: (m: object) => void; now: Date;
+function ButtonCell({ b, pos, page, states, send, now }: {
+  b: Button; pos: Pos; page: Page; states: States; send: (m: object) => void; now: Date;
 }) {
   const [pressed, setPressed] = useState(false);
   const down = useRef(false);
@@ -417,7 +427,7 @@ function ButtonCell({ b, page, states, send, now }: {
   return (
     <div
       className={`ft-cell ${hasLong && pressed ? 'is-holding' : ''}`}
-      style={cellStyle(b)}
+      style={posStyle(pos)}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
         down.current = true;
@@ -444,14 +454,13 @@ function ButtonCell({ b, page, states, send, now }: {
   );
 }
 
-function SliderCell({ b, page, states, send }: { b: Button; page: Page; states: States; send: (m: object) => void }) {
+function SliderCell({ b, pos, vertical, page, states, send }: { b: Button; pos: Pos; vertical: boolean; page: Page; states: States; send: (m: object) => void }) {
   const key = sliderStateKey(b);
   const remote = Number(states[key] ?? 0);
   const [local, setLocal] = useState<number | null>(null);
   const [dragging, setDragging] = useState(false);
   const last = useRef(0);
   const ref = useRef<HTMLDivElement>(null);
-  const vertical = b.slider?.vertical ?? true;
 
   const valueAt = (e: React.PointerEvent) => {
     const r = ref.current!.getBoundingClientRect();
@@ -476,7 +485,7 @@ function SliderCell({ b, page, states, send }: { b: Button; page: Page; states: 
     <div
       ref={ref}
       className="ft-cell"
-      style={cellStyle(b)}
+      style={posStyle(pos)}
       onPointerDown={(e) => {
         e.currentTarget.setPointerCapture(e.pointerId);
         ref.current!.dataset.drag = '1';
@@ -493,7 +502,7 @@ function SliderCell({ b, page, states, send }: { b: Button; page: Page; states: 
       }}
       onPointerCancel={() => { delete ref.current!.dataset.drag; setDragging(false); setLocal(null); }}
     >
-      <SliderFace button={b} states={states} value={local ?? remote} dragging={dragging} />
+      <SliderFace button={b} states={states} value={local ?? remote} dragging={dragging} vertical={vertical} />
     </div>
   );
 }

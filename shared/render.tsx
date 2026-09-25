@@ -155,9 +155,12 @@ export function sliderStateKey(b: Button): string {
 }
 
 /** Громкость: клавиша, которая заливается цветом по уровню. Край заливки — «ручка». */
-export function SliderFace({ button, states, value, dragging }: { button: Button; states: States; value: number; dragging?: boolean }) {
+export function SliderFace({ button, states, value, dragging, vertical = true }: {
+  button: Button; states: States; value: number; dragging?: boolean;
+  /** Направление заливки — по форме клавиши: высокая заливается снизу, широкая слева. */
+  vertical?: boolean;
+}) {
   const s = button.style;
-  const vertical = button.slider?.vertical ?? true;
   const color = button.slider?.color || ACCENT;
   const v = Math.max(0, Math.min(100, value));
   const label = s.labelPos === 'hidden' ? '' : formatLabel(s.label, states);

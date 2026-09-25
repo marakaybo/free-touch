@@ -182,6 +182,11 @@ async fn usb_install_adb(st: State<'_, AppState>) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn usb_plain_phones() -> Vec<String> {
+    tokio::task::spawn_blocking(usb::plain_usb_phones).await.unwrap_or_default()
+}
+
+#[tauri::command]
 fn quit(app: AppHandle) {
     app.exit(0);
 }
@@ -300,6 +305,7 @@ pub fn run() {
             read_image,
             allow_firewall,
             usb_install_adb,
+            usb_plain_phones,
             quit
         ])
         .run(tauri::generate_context!())
